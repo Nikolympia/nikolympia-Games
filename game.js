@@ -11,20 +11,21 @@ const CFG = {
   CHEST_BASE_CHANCE: 0.018,
 };
 
-// ──── ONLINE LEADERBOARD (dreamlo) ────
-// HOW TO SET UP:
-// 1. Go to https://dreamlo.com
-// 2. Click "Get Yours Now" (free, no signup needed)
-// 3. Copy your PRIVATE key and PUBLIC key from the page
-// 4. Paste them below replacing the placeholder text
+// ──── ONLINE LEADERBOARD ────
+// LIVE HTTPS SITES: uses Firestore (firebase-config.js + rules — see firestore.rules.txt).
+// Dreamlo is HTTP-only; browsers block it on https:// — kept as fallback for local http:// testing.
 const DREAMLO_PRIVATE = 'LUsVfNWpLkaYChxvO3CDVQtvQeVLKZFECLm8ENVCecFA';
 const DREAMLO_PUBLIC  = '69c173f38f40bb2f60d17801';
 const DREAMLO_ENABLED = DREAMLO_PRIVATE !== 'YOUR_PRIVATE_KEY_HERE';
 const DL_RAW='http://www.dreamlo.com/lb';
+const FS_LB_COLLECTION='void_survivors_leaderboard';
 const PROXIES=[
   url=>'https://corsproxy.io/?url='+url,
   url=>'https://api.allorigins.win/raw?url='+encodeURIComponent(url),
 ];
+function fsDb(){return typeof window!=='undefined'?window.__NK_FB_DB:null}
+function hasFirestoreLB(){return!!(fsDb()&&typeof firebase!=='undefined'&&firebase.firestore)}
+function hasOnlineLeaderboard(){return hasFirestoreLB()||DREAMLO_ENABLED}
 function fetchWithTimeout(url,ms=8000){
   const ctrl=new AbortController();
   const tid=setTimeout(()=>ctrl.abort(),ms);
@@ -279,10 +280,28 @@ function setUsername(name){const s=loadSave();s.username=name.trim().slice(0,16)
 let globalLB=[];
 let globalLBFetched=false;
 async function submitOnlineScore(name,score,seconds,text){
-  if(!DREAMLO_ENABLED)return;
   const safeName=name.replace(/[^a-zA-Z0-9_ -]/g,'').slice(0,16)||'Player';
   const safeText=(text||'').slice(0,30);
-  const path=`/${DREAMLO_PRIVATE}/add-json/${encodeURIComponent(safeName)}/${score}/${seconds}/${encodeURIComponent(safeText)}`;
+  const sc=Math.floor(Number(score)||0);
+  const sec=Math.floor(Number(seconds)||0);
+
+  if(hasFirestoreLB()){
+    try{
+      await fsDb().collection(FS_LB_COLLECTION).add({
+        name:safeName,
+        score:sc,
+        seconds:sec,
+        text:safeText,
+        createdAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
+      console.log('Score saved to Firestore');
+      await fetchGlobalLB();
+      return;
+    }catch(e){console.warn('Firestore score submit failed:',e)}
+  }
+
+  if(!DREAMLO_ENABLED)return;
+  const path=`/${DREAMLO_PRIVATE}/add-json/${encodeURIComponent(safeName)}/${sc}/${sec}/${encodeURIComponent(safeText)}`;
   try{
     const r=await dlFetch(path);
     if(r){
@@ -299,6 +318,25 @@ async function submitOnlineScore(name,score,seconds,text){
   }catch(e){console.warn('Score submit failed:',e)}
 }
 async function fetchGlobalLB(){
+  if(hasFirestoreLB()){
+    try{
+      const snap=await fsDb().collection(FS_LB_COLLECTION).orderBy('score','desc').limit(25).get();
+      globalLBFetched=true;
+      globalLB=snap.docs.map(d=>{
+        const x=d.data();
+        let dateStr='';
+        try{if(x.createdAt&&x.createdAt.toDate)dateStr=x.createdAt.toDate().toLocaleString()}catch{}
+        return{name:String(x.name||'Player').slice(0,24),score:parseInt(x.score,10)||0,time:parseInt(x.seconds,10)||0,text:String(x.text||'').slice(0,40),date:dateStr};
+      });
+      return globalLB;
+    }catch(e){
+      console.warn('Firestore leaderboard fetch failed:',e);
+      globalLBFetched=true;
+      globalLB=[];
+      return globalLB;
+    }
+  }
+
   if(!DREAMLO_ENABLED){globalLBFetched=true;return[]}
   try{
     const res=await dlFetch(`/${DREAMLO_PUBLIC}/json`);
@@ -315,8 +353,8 @@ async function fetchGlobalLB(){
 }
 function renderGlobalLB(containerId,highlightName){
   const el=document.getElementById(containerId);if(!el)return;
-  if(!DREAMLO_ENABLED){
-    el.innerHTML='<div class="recap-section"><div class="recap-title">Global Leaderboard</div><div class="lb-loading">Set up dreamlo keys in game.js to enable online leaderboard</div></div>';
+  if(!hasOnlineLeaderboard()){
+    el.innerHTML='<div class="recap-section"><div class="recap-title">Global Leaderboard</div><div class="lb-loading">Firebase not loaded — check firebase-config.js on your server</div></div>';
     return;
   }
   if(!globalLBFetched){el.innerHTML='<div class="recap-section"><div class="recap-title">🌍 Global Leaderboard</div><div class="lb-loading">Loading...</div></div>';return}

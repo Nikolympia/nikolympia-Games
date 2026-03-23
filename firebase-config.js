@@ -13,3 +13,5 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Used by game.js for the online leaderboard (HTTPS-safe)
+window.__NK_FB_DB = db;
