@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Contact — Nikolympia Games</title>
+  <meta name="description" content="Get in touch with Nikolympia Games.">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+  <nav class="site-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">NIKOLYMPIA</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html" class="active">Contact</a></li>
+      </ul>
+      <div id="nav-account-area"></div>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <h1>Contact</h1>
+    <p>Got something to say? Go ahead.</p>
+  </div>
+
+  <div class="contact-grid">
+    <div class="contact-info">
+      <h2>What Can You Send?</h2>
+      <p>Bug reports, game ideas, feedback, whatever. If it's about the games or the site I want to hear it.</p>
+      <p>I usually reply within a day or two.</p>
+
+      <h2>Email</h2>
+      <ul class="contact-links">
+        <li><span>&#128231;</span> <a href="mailto:nikoskoulouris2005@gmail.com">nikoskoulouris2005@gmail.com</a></li>
+      </ul>
+      <p style="margin-top:1rem;font-size:.8rem;color:rgba(255,255,255,.3)">Or use the form — same place.</p>
+    </div>
+
+    <form class="contact-form" action="https://formsubmit.co/nikoskoulouris2005@gmail.com" method="POST">
+      <input type="hidden" name="_subject" value="Nikolympia Games — Message">
+      <input type="hidden" name="_captcha" value="false">
+      <input type="hidden" name="_next" value="contact.html">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="What should I call you?" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="So I can reply" required>
+      </div>
+      <div class="form-group">
+        <label for="topic">What's it about?</label>
+        <select id="topic" name="topic">
+          <option value="general">Just saying hi</option>
+          <option value="bug">Bug report</option>
+          <option value="feature">Feature idea</option>
+          <option value="game-idea">New game suggestion</option>
+          <option value="other">Something else</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="What's up?" required></textarea>
+      </div>
+      <div class="form-submit">
+        <button type="submit" class="btn btn-purple">Send</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="auth-modal" class="modal-overlay">
+    <div class="modal"></div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="nav-logo">NIKOLYMPIA</span>
+        <p>Free browser games. More coming soon.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Pages</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="privacy.html">Privacy Policy</a></li>
+          <li><a href="terms.html">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Nikolympia Games</span>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

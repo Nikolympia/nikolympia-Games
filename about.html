@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>About — Nikolympia Games</title>
+  <meta name="description" content="About Nikolympia Games — who's behind it and what we're building.">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+  <nav class="site-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">NIKOLYMPIA</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="index.html">Home</a></li>
+        <li><a href="about.html" class="active">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div id="nav-account-area"></div>
+    </div>
+  </nav>
+
+  <div class="page-header">
+    <h1>About</h1>
+    <p>The short version.</p>
+  </div>
+
+  <div class="page-body">
+    <h2>Hey</h2>
+    <p>I'm Nikos. I started Nikolympia because I wanted to build games people can just play. No downloading a 2GB file, no making an account, no waiting. You click a link, the game loads, and you're in.</p>
+
+    <p>Everything runs in the browser — desktop, phone, tablet. I build these with JavaScript and HTML5 Canvas so they're lightweight. Your progress saves in the browser so you can come back anytime.</p>
+
+    <h2>The Games</h2>
+    <p>Right now there's one game live — <strong>Void Survivors</strong>. It's a survival roguelike where you fight waves of enemies, level up, pick weapons, and try to last as long as you can. It has weapon evolutions, boss fights, unlockable characters, and a global leaderboard.</p>
+
+    <p>More games are in the works. Different genres. I'll add them as they're done — I'd rather take my time than rush out something bad.</p>
+
+    <h2>Why Browser Games?</h2>
+    <p>Browser games are underrated. You don't need a gaming PC. You don't need to install anything. You can play on your phone on the bus or on your computer at home. The barrier is literally zero.</p>
+
+    <p>Plus HTML5 Canvas can actually handle a lot more than people think. These aren't your 2010 Flash games (RIP though, those were fun).</p>
+
+    <h2>Got Feedback?</h2>
+    <p>Bug reports, game ideas, whatever — hit me up on the <a href="contact.html">contact page</a>. I read everything.</p>
+  </div>
+
+  <div id="auth-modal" class="modal-overlay">
+    <div class="modal"></div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="nav-logo">NIKOLYMPIA</span>
+        <p>Free browser games. More coming soon.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Pages</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="privacy.html">Privacy Policy</a></li>
+          <li><a href="terms.html">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Nikolympia Games</span>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>

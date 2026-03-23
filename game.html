@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Void Survivors</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container">
+    <a href="index.html" id="back-to-hub" title="Back to Hub">&#8592;</a>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="title-screen" class="overlay">
+      <div class="overlay-content">
+        <h1>VOID<br>SURVIVORS</h1>
+        <p class="subtitle">Survive the endless horde</p>
+        <div class="username-section">
+          <label for="username-input" class="username-label">Your Name</label>
+          <input type="text" id="username-input" class="username-input" placeholder="Enter your name..." maxlength="16" autocomplete="off" />
+        </div>
+        <div id="title-coins" class="coin-display">💰 <span>0</span></div>
+        <button id="play-btn" class="btn-primary">PLAY</button>
+        <button id="shop-btn" class="btn-secondary">⬆ UPGRADES</button>
+        <button id="lb-btn" class="btn-secondary">🏆 LEADERBOARD</button>
+        <p class="hint">WASD / Arrow Keys &bull; Auto-attack &bull; Touch on mobile</p>
+      </div>
+    </div>
+
+    <div id="char-screen" class="overlay hidden">
+      <div class="overlay-content">
+        <h2>SELECT CHARACTER</h2>
+        <p class="subtitle">Each has unique stats and starting weapon</p>
+        <div id="char-cards" class="card-grid"></div>
+        <button id="back-char-btn" class="btn-small">← BACK</button>
+      </div>
+    </div>
+
+    <div id="shop-screen" class="overlay hidden">
+      <div class="overlay-content">
+        <h2>PERMANENT UPGRADES</h2>
+        <p class="subtitle">Persist between runs</p>
+        <div id="shop-coins" class="coin-display">💰 <span>0</span></div>
+        <div id="shop-items"></div>
+        <button id="back-shop-btn" class="btn-small">← BACK</button>
+      </div>
+    </div>
+
+    <div id="levelup-screen" class="overlay hidden">
+      <div class="overlay-content">
+        <h2>LEVEL UP!</h2>
+        <p class="subtitle">Choose an upgrade</p>
+        <div id="upgrade-cards" class="card-grid"></div>
+      </div>
+    </div>
+
+    <div id="boss-warning" class="banner hidden">⚠️ BOSS INCOMING ⚠️</div>
+    <div id="evolution-banner" class="banner evo-banner hidden"></div>
+
+    <div id="victory-screen" class="overlay hidden">
+      <div class="overlay-content">
+        <h2>🏆 VICTORY 🏆</h2>
+        <p class="subtitle">You survived 20 minutes!</p>
+        <div id="victory-stats"></div>
+        <div id="vic-global-lb" class="lb-container"></div>
+        <button id="victory-btn" class="btn-primary">CONTINUE</button>
+      </div>
+    </div>
+
+    <div id="lb-screen" class="overlay hidden">
+      <div class="overlay-content">
+        <h2>🏆 GLOBAL LEADERBOARD</h2>
+        <p class="subtitle">Top survivors worldwide</p>
+        <div id="global-lb-list" class="lb-container"></div>
+        <button id="back-lb-btn" class="btn-small">← BACK</button>
+      </div>
+    </div>
+
+    <div id="gameover-screen" class="overlay hidden">
+      <div class="overlay-content gameover-content">
+        <h2>GAME OVER</h2>
+        <div id="final-stats"></div>
+        <div id="damage-recap"></div>
+        <div id="run-leaderboard"></div>
+        <div id="go-global-lb" class="lb-container"></div>
+        <button id="restart-btn" class="btn-primary">CONTINUE</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

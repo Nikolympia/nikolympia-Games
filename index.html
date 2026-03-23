@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Nikolympia Games</title>
+  <meta name="description" content="Free browser games — no downloads, no installs. Play instantly.">
+  <meta name="keywords" content="free games, browser games, online games, html5 games, nikolympia">
+  <meta property="og:title" content="Nikolympia Games">
+  <meta property="og:description" content="Free browser games. No downloads. Just play.">
+  <meta property="og:image" content="void_survivors_cover.png">
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+  <nav class="site-nav">
+    <div class="nav-inner">
+      <a href="index.html" class="nav-logo">NIKOLYMPIA</a>
+      <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
+      <ul class="nav-links">
+        <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="about.html">About</a></li>
+        <li><a href="contact.html">Contact</a></li>
+      </ul>
+      <div id="nav-account-area"></div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <h1><span>NIKOLYMPIA</span> GAMES</h1>
+    <p class="tagline">Free browser games — pick one and play</p>
+  </section>
+
+  <div id="recent-section" class="section" style="display:none">
+    <div class="section-inner">
+      <div class="section-header">
+        <h2 class="section-title">&#128338; Recently Played</h2>
+      </div>
+      <div class="game-row"></div>
+    </div>
+  </div>
+
+  <div id="liked-section" class="section" style="display:none">
+    <div class="section-inner">
+      <div class="section-header">
+        <h2 class="section-title">&#9829; Liked Games</h2>
+      </div>
+      <div class="game-row"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-inner">
+      <div class="section-header">
+        <h2 class="section-title">All Games</h2>
+      </div>
+      <div class="games-grid" id="all-games-grid"></div>
+    </div>
+  </div>
+
+  <div id="auth-modal" class="modal-overlay">
+    <div class="modal"></div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <span class="nav-logo">NIKOLYMPIA</span>
+        <p>Free browser games. More coming soon.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Pages</h4>
+        <ul>
+          <li><a href="index.html">Home</a></li>
+          <li><a href="about.html">About</a></li>
+          <li><a href="contact.html">Contact</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="privacy.html">Privacy Policy</a></li>
+          <li><a href="terms.html">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>&copy; 2026 Nikolympia Games</span>
+    </div>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="site.js"></script>
+</body>
+</html>
