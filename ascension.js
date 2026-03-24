@@ -239,6 +239,9 @@
       lastTs: Date.now(),
       totalPlaySeconds: 0,
       phaseSeen: 1,
+      phaseMax: 1,
+      lbBestScore: 0,
+      lbName: 'Operator',
       rareBoostUntil: 0,
       flags: {
         automationTutorial: false,
@@ -312,7 +315,7 @@
       id: 'cache',
       title: 'Data cache',
       desc:
-        'Unlocks Data (D): a side stream scraped from how fast you generate Energy — think “cookies per second” spawning a second currency in that one bakery game. +0.1% of Energy/s → Data/s per level.',
+        'Unlocks Data (D): a side stream scraped from how fast you generate Energy — think “cookies per second” spawning a second currency in that one bakery game. +0.22% of Energy/s → Data/s per level.',
       max: 40,
       costBase: 5000,
       costMult: 1.7,
@@ -320,13 +323,24 @@
       phase: 2,
     },
     {
+      id: 'uplink',
+      title: 'Uplink priming',
+      desc:
+        '+22% passive Network (N)/s from every captured region per level — cheap first step so you are not staring at a flat zero forever. Stacks with Mesh protocol.',
+      max: 30,
+      costBase: 35,
+      costMult: 1.62,
+      currency: 'data',
+      phase: 3,
+    },
+    {
       id: 'mesh',
       title: 'Mesh protocol',
       desc:
-        'Each level: −8% Energy cost to Capture a region, and +8% passive Network (N)/s from regions you already own — both stack multiplicatively. Paid in Data because the paperwork is digital.',
+        'Each level: −8% Energy cost to Capture a region, and +8% passive Network (N)/s from regions you already own — both stack multiplicatively. Paid in Data.',
       max: 30,
-      costBase: 1e6,
-      costMult: 1.85,
+      costBase: 2200,
+      costMult: 1.78,
       currency: 'data',
       phase: 3,
     },
@@ -482,8 +496,11 @@
   ];
 
   // ═══ PHASE ═══════════════════════════════════════════════
-  /** Phases advance only from what you buy, capture, or earn — no real-time waits. */
-  function computePhase() {
+  /**
+   * Raw phase from current stats (can go down if you spend resources).
+   * Displayed phase uses phaseMax — once you reach e.g. phase 5, you never fall back to 4.
+   */
+  function computePhaseFromProgress() {
     const E = state.energy;
     const te = state.totalEnergyEarned;
     const regN = state.regions.filter(Boolean).length;
@@ -494,6 +511,18 @@
     if (p >= 4 && (state.planets.some((n) => n > 0) || state.matter >= 250 || E >= 1e16)) p = 5;
     if (p >= 5 && (state.quantumTotal >= 1 || levelOf('qseed') >= 1 || E >= 1e21)) p = 6;
     return Math.min(6, p);
+  }
+
+  function syncPhaseMax() {
+    const raw = computePhaseFromProgress();
+    const cur = typeof state.phaseMax === 'number' && state.phaseMax >= 1 ? state.phaseMax : 1;
+    state.phaseMax = Math.min(6, Math.max(cur, raw));
+  }
+
+  /** Permanent high-water phase for UI, tabs, and story gates. */
+  function computePhase() {
+    syncPhaseMax();
+    return state.phaseMax;
   }
 
   // ═══ ECONOMY ═════════════════════════════════════════════
@@ -512,13 +541,14 @@
   function dataPerSecond() {
     if (computePhase() < 2 || levelOf('cache') <= 0) return 0;
     const eps = genProduction();
-    return eps * 0.001 * levelOf('cache');
+    return eps * 0.0022 * levelOf('cache');
   }
 
   function networkPerSecond() {
     const n = state.regions.filter(Boolean).length;
     if (n === 0) return 0;
-    return 0.5 * n * (1 + n * 0.15) * Math.pow(1.08, levelOf('mesh'));
+    const uplink = 1 + 0.22 * levelOf('uplink');
+    return 2.4 * n * (1 + n * 0.13) * Math.pow(1.08, levelOf('mesh')) * uplink;
   }
 
   function matterPerSecond() {
@@ -606,6 +636,12 @@
       done: (s) => s.regions.some(Boolean),
     },
     {
+      id: 'uplink_once',
+      label: 'Buy Uplink priming once (speeds up Network income)',
+      show: (s, p) => p >= 3 && levelOf('cache') >= 1,
+      done: (s) => levelOf('uplink') >= 1,
+    },
+    {
       id: 'phase_4',
       label: 'Reach Phase 4',
       show: (s, p) => p >= 3,
@@ -678,6 +714,7 @@
     panelHint: document.getElementById('panel-hint'),
     statDot: document.getElementById('stat-dot'),
     btnLog: document.getElementById('btn-log'),
+    btnLb: document.getElementById('btn-lb'),
     btnAch: document.getElementById('btn-ach'),
     objective: document.getElementById('objective-text'),
     orbGain: document.getElementById('orb-gain'),
@@ -693,6 +730,10 @@
     tabQuantum: document.getElementById('tab-quantum'),
     logContent: document.getElementById('log-content'),
     achList: document.getElementById('ach-list'),
+    lbTable: document.getElementById('asc-lb-table'),
+    lbNameInput: document.getElementById('asc-lb-name'),
+    lbRatingEl: document.getElementById('asc-lb-rating'),
+    lbStatus: document.getElementById('asc-lb-status'),
     toast: document.getElementById('toast'),
     rareBanner: document.getElementById('rare-banner'),
     checklistRoot: document.getElementById('checklist-root'),
@@ -807,10 +848,15 @@
         upgLevels: { ...d.upgLevels, ...(o.upgLevels || {}) },
         achievements: { ...d.achievements, ...(o.achievements || {}) },
         storySeen: { ...d.storySeen, ...(o.storySeen || {}) },
+        phaseMax:
+          typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(6, o.phaseMax) : d.phaseMax,
+        lbBestScore: Math.max(0, parseInt(o.lbBestScore, 10) || 0),
+        lbName: String(o.lbName != null ? o.lbName : d.lbName).slice(0, 24),
       };
       if (state.genLevels.length < GEN_DEFS.length) {
         while (state.genLevels.length < GEN_DEFS.length) state.genLevels.push(0);
       }
+      state.phaseMax = Math.min(6, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
       migrateProgressiveFlags();
     } catch (e) {
       state = defaultState();
@@ -1035,6 +1081,7 @@
     const f = state.flags;
     el.phasePill.hidden = !f.showPhaseBadge;
     el.btnLog.hidden = !f.showLogAch;
+    if (el.btnLb) el.btnLb.hidden = !f.showLogAch;
     el.btnAch.hidden = !f.showLogAch;
     el.ascTabs.classList.toggle('hidden', !f.generatorsTab);
     el.panelHint.hidden = f.generatorsTab;
@@ -1064,9 +1111,14 @@
     if (phase < 3) {
       return 'Phase 3: use the Network tab to capture a region, or keep scaling Energy and upgrades.';
     }
-    if (!state.regions[0]) return 'Capture a region on the Network tab (paid in Energy).';
+    if (!state.regions.some(Boolean)) {
+      return 'Network tab: Capture at least one region (Energy) — that starts passive Network (N) income.';
+    }
+    if (levelOf('uplink') < 1 && levelOf('cache') >= 1) {
+      return 'Buy Uplink priming (Core, Data) — inexpensive levels that multiply N/s from every region you hold.';
+    }
     if (phase < 4) {
-      return 'Phase 4: more regions, Mesh protocol (needs Data), or keep pushing Energy higher.';
+      return 'Phase 4: more regions, Mesh protocol (Data), or keep pushing Energy higher.';
     }
     if (phase < 5) {
       return 'Phase 5: open Space, colonize a planet, earn Matter, or push Energy into the quadrillions+.';
@@ -1225,7 +1277,7 @@
 
   function renderMap() {
     let html =
-      '<p class="map-intro"><strong>Network (N)</strong> trickles in from regions you’ve captured — passive rent from nodes that joined your mesh. Spend <strong>Energy</strong> once per node to Capture; then N/s grows with how many you own. <em>Mesh protocol</em> (Core tab, Data) makes captures cheaper.</p><div class="map-grid">';
+      '<p class="map-intro"><strong>Network (N)</strong> trickles in from regions you’ve captured — passive rent from nodes on your mesh. Spend <strong>Energy</strong> once per region to Capture. On Core (Data): <em>Uplink priming</em> boosts N/s early; <em>Mesh protocol</em> makes captures cheaper and buffs N/s further.</p><div class="map-grid">';
     REGION_NAMES.forEach((name, i) => {
       const cap = state.regions[i];
       const cost = regionCost(i);
@@ -1525,6 +1577,22 @@
     renderAchList();
     document.getElementById('modal-ach').classList.remove('hidden');
   };
+  const btnLbSubmit = document.getElementById('asc-lb-submit');
+  if (el.btnLb) {
+    el.btnLb.onclick = async () => {
+      document.getElementById('modal-lb').classList.remove('hidden');
+      if (el.lbNameInput) el.lbNameInput.value = state.lbName || 'Operator';
+      if (el.lbRatingEl) el.lbRatingEl.textContent = String(computeProtocolRating());
+      if (el.lbStatus) el.lbStatus.textContent = 'Loading…';
+      if (el.lbTable) el.lbTable.innerHTML = '<p class="asc-lb-loading">Loading…</p>';
+      await fetchAscLeaderboard();
+      renderAscLeaderboard();
+      if (el.lbStatus) el.lbStatus.textContent = '';
+    };
+  }
+  if (btnLbSubmit) {
+    btnLbSubmit.onclick = () => submitAscScore();
+  }
   document.querySelectorAll('.asc-modal-close').forEach((b) => {
     b.onclick = () => {
       document.getElementById('modal-' + b.dataset.close).classList.add('hidden');
@@ -1543,6 +1611,185 @@
         <span class="ok">${u ? '✓' : '—'}</span>
       </div>`;
     }).join('');
+  }
+
+  // ═══ GLOBAL LEADERBOARD (Firestore) ═══════════════════════
+  const FS_LB_COLLECTION = 'ascension_leaderboard';
+  const LB_LIMIT = 20;
+  const LB_FETCH_CAP = 300;
+
+  const fsDb = () => (typeof window !== 'undefined' ? window.__NK_FB_DB : null);
+  function hasFirestoreLB() {
+    return !!(fsDb() && typeof firebase !== 'undefined' && firebase.firestore);
+  }
+
+  function mergeBestAsc(rows) {
+    const best = new Map();
+    for (const r of rows) {
+      const key = (r.name || 'Operator').trim().toLowerCase() || 'operator';
+      const cur = best.get(key);
+      if (!cur || r.score > cur.score) best.set(key, r);
+    }
+    return Array.from(best.values()).sort((a, b) => b.score - a.score);
+  }
+
+  function mapAscDoc(d) {
+    const x = d.data();
+    let dateStr = '';
+    try {
+      if (x.createdAt && x.createdAt.toDate) dateStr = x.createdAt.toDate().toLocaleString();
+    } catch (_) {}
+    return {
+      name: String(x.name || 'Operator').slice(0, 24),
+      score: Math.floor(Number(x.score) || 0),
+      time: Math.floor(Number(x.seconds) || 0),
+      text: String(x.text || '').slice(0, 40),
+      date: dateStr,
+    };
+  }
+
+  function computeProtocolRating() {
+    syncPhaseMax();
+    const p = state.phaseMax;
+    const te = Math.log10(Math.max(10, state.totalEnergyEarned));
+    const tePart = Math.min(120000000, Math.floor(te * 22000000));
+    const qPart = Math.min(80000000, (state.quantumTotal || 0) * 4000000);
+    const regPart = state.regions.filter(Boolean).length * 400000;
+    return Math.min(1999999999, Math.floor(p * 240000000 + tePart + qPart + regPart));
+  }
+
+  let globalAscLB = [];
+  let globalAscLBFetched = false;
+  let globalAscLBErr = '';
+
+  async function fetchAscLeaderboard() {
+    globalAscLBErr = '';
+    if (!hasFirestoreLB()) {
+      globalAscLBFetched = true;
+      globalAscLB = [];
+      return globalAscLB;
+    }
+    const col = fsDb().collection(FS_LB_COLLECTION).orderBy('score', 'desc').limit(LB_FETCH_CAP);
+    let snap = null;
+    try {
+      snap = await col.get({ source: 'server' });
+    } catch (e1) {
+      try {
+        snap = await col.get();
+      } catch (e2) {
+        globalAscLBFetched = true;
+        globalAscLB = [];
+        globalAscLBErr = String(e2.message || e2 || 'fetch failed');
+        return globalAscLB;
+      }
+    }
+    try {
+      const rows = snap.docs.map(mapAscDoc);
+      globalAscLBFetched = true;
+      globalAscLB = mergeBestAsc(rows).slice(0, LB_LIMIT);
+      return globalAscLB;
+    } catch (e) {
+      globalAscLBFetched = true;
+      globalAscLB = [];
+      globalAscLBErr = String(e.message || e || 'parse failed');
+      return globalAscLB;
+    }
+  }
+
+  function escapeHtmlLb(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtLbPlaytime(sec) {
+    const s = Math.floor(sec || 0);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0) return h + 'h ' + m + 'm';
+    return m + 'm';
+  }
+
+  async function submitAscScore() {
+    if (!hasFirestoreLB()) {
+      if (el.lbStatus) {
+        el.lbStatus.textContent =
+          'Firebase not loaded. Use the live site with firebase-config.js, or see firestore.rules.txt.';
+      }
+      return;
+    }
+    const rawName = (el.lbNameInput && el.lbNameInput.value) || state.lbName || 'Operator';
+    const safeName = rawName.replace(/[^a-zA-Z0-9_ -]/g, '').slice(0, 24) || 'Operator';
+    state.lbName = safeName;
+    const rating = computeProtocolRating();
+    if (rating <= (state.lbBestScore || 0)) {
+      if (el.lbStatus) {
+        el.lbStatus.textContent =
+          'Rating must beat your last upload (' +
+          state.lbBestScore +
+          '). Progress more, then try again.';
+      }
+      return;
+    }
+    const sec = Math.min(9999999, Math.floor(state.totalPlaySeconds || 0));
+    const p = state.phaseMax;
+    const text = ('Ph' + p + ' TE ' + fmtNum(state.totalEnergyEarned)).slice(0, 40);
+    try {
+      await fsDb().collection(FS_LB_COLLECTION).add({
+        name: safeName,
+        score: rating,
+        seconds: sec,
+        text: text,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      state.lbBestScore = rating;
+      save();
+      if (el.lbStatus) el.lbStatus.textContent = 'Uploaded rating ' + rating + '.';
+      toast('Leaderboard updated');
+      await fetchAscLeaderboard();
+      renderAscLeaderboard();
+    } catch (e) {
+      console.warn('[Ascension] Leaderboard submit failed', e);
+      if (el.lbStatus) el.lbStatus.textContent = 'Submit failed: ' + String(e.message || e);
+    }
+  }
+
+  function renderAscLeaderboard() {
+    if (!el.lbTable) return;
+    if (!hasFirestoreLB()) {
+      el.lbTable.innerHTML =
+        '<p class="asc-lb-off">Connect Firebase on your host (same as Void Survivors). Rules: <code>ascension_leaderboard</code> in <code>firestore.rules.txt</code>.</p>';
+      return;
+    }
+    if (globalAscLBErr) {
+      el.lbTable.innerHTML =
+        '<p class="asc-lb-err">Could not load scores. ' + escapeHtmlLb(globalAscLBErr) + '</p>';
+      return;
+    }
+    if (!globalAscLB.length) {
+      el.lbTable.innerHTML = '<p class="asc-lb-empty">No entries yet — upload a run.</p>';
+      return;
+    }
+    let html =
+      '<table class="asc-lb-grid"><thead><tr><th>#</th><th>Name</th><th>Rating</th><th>Play</th><th>Note</th></tr></thead><tbody>';
+    globalAscLB.forEach((r, i) => {
+      html +=
+        '<tr><td>' +
+        (i + 1) +
+        '</td><td>' +
+        escapeHtmlLb(r.name) +
+        '</td><td>' +
+        r.score +
+        '</td><td>' +
+        fmtLbPlaytime(r.time) +
+        '</td><td>' +
+        escapeHtmlLb(r.text) +
+        '</td></tr>';
+    });
+    html += '</tbody></table>';
+    el.lbTable.innerHTML = html;
   }
 
   // ═══ GAME LOOP ═══════════════════════════════════════════

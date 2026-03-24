@@ -2,8 +2,15 @@
 // FIRESTORE RULES — add these to Firebase Console → Firestore → Rules → Publish
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// If you already have rules, ADD the two `match` blocks below inside
+// If you already have rules, ADD the `match` blocks below inside
 // `match /databases/{database}/documents { ... }` — do not delete your /users rules.
+//
+// ASCENSION PROTOCOL leaderboard (copy-paste checklist):
+//   1. Paste the `ascension_leaderboard` block from this file into Rules → Publish.
+//   2. No extra Firestore index needed (single-field orderBy score on that collection).
+//   3. Host ascension.html over HTTPS with firebase-config.js (same as index / game.html).
+//   4. Collection is created automatically on first player upload; fields: name, score,
+//      seconds, text, createdAt (serverTimestamp).
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -13,6 +20,23 @@ service cloud.firestore {
 
     // Global leaderboard (Void Survivors) — HTTPS site, no login required to submit
     match /void_survivors_leaderboard/{entryId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 24
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score < 2000000000
+        && request.resource.data.seconds is int
+        && request.resource.data.seconds >= 0
+        && request.resource.data.seconds < 10000000
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 40;
+      allow update, delete: if false;
+    }
+
+    // Ascension Protocol — protocol rating (int), seconds = play time, text = short note
+    match /ascension_leaderboard/{entryId} {
       allow read: if true;
       allow create: if request.resource.data.name is string
         && request.resource.data.name.size() > 0

@@ -1033,6 +1033,138 @@ html, body {
   font-weight: 800;
 }
 
+/* Leaderboard modal */
+.asc-lb-intro {
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+
+.asc-lb-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+
+.asc-lb-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+}
+
+.asc-lb-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.asc-lb-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.asc-lb-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.asc-lb-meta strong {
+  color: var(--cyan);
+}
+
+.asc-lb-submit {
+  padding: 0.45rem 0.85rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 8px;
+  border: 1px solid var(--cyan);
+  background: rgba(0, 255, 213, 0.15);
+  color: var(--cyan);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.asc-lb-submit:active {
+  transform: scale(0.98);
+}
+
+.asc-lb-hint {
+  font-size: 0.62rem;
+  color: var(--muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.asc-lb-status {
+  font-size: 0.68rem;
+  color: var(--violet);
+  margin: 0;
+  min-height: 1.2em;
+}
+
+.asc-lb-sub {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--violet);
+  margin: 0 0 0.45rem;
+}
+
+.asc-lb-table-wrap {
+  overflow-x: auto;
+  max-height: 42vh;
+  overflow-y: auto;
+  font-size: 0.68rem;
+}
+
+.asc-lb-grid {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.asc-lb-grid th,
+.asc-lb-grid td {
+  padding: 0.35rem 0.45rem;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.asc-lb-grid th {
+  color: var(--cyan);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.asc-lb-off,
+.asc-lb-empty,
+.asc-lb-loading {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.asc-lb-err {
+  font-size: 0.72rem;
+  color: var(--red);
+  margin: 0;
+}
+
 /* Toast & rare */
 .asc-toast {
   position: fixed;

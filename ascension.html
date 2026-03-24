@@ -22,6 +22,7 @@
       </div>
       <div class="asc-phase-pill is-locked-ui" id="phase-pill" hidden>PHASE <span id="phase-num">1</span></div>
       <button type="button" class="asc-icon-btn is-locked-ui" id="btn-log" title="System log" hidden>LOG</button>
+      <button type="button" class="asc-icon-btn is-locked-ui" id="btn-lb" title="Leaderboard" hidden>LB</button>
       <button type="button" class="asc-icon-btn is-locked-ui" id="btn-ach" title="Achievements" hidden>★</button>
     </header>
 
@@ -49,6 +50,7 @@
           <p><strong>Data (D)</strong> — Appears after <strong>Data cache</strong> (Core). It’s a slice of your Energy production converted into a second currency — same energy as “you built so many cursors that now you also farm heavenly chips.” Spend D on things like <strong>Mesh protocol</strong>.</p>
           <p><strong>Network (N)</strong> — Rent from the <strong>Network</strong> tab. You pay <strong>Energy</strong> once per region to <strong>Capture</strong> it; then N drips in forever based on how many nodes you own. Not clicky — it’s passive infrastructure.</p>
           <p><strong>Matter / Quantum</strong> — Late-game layers: colonies and weird physics money. The tabs show up when the AI thinks you’re ready (phases 5–6).</p>
+          <p><strong>Phases never downgrade:</strong> once you unlock a phase, it stays unlocked even if your Energy bar has a bad day.</p>
           <p class="asc-field-manual-note"><strong>Generators tab:</strong> each building row can also be <strong>hand-tuned</strong> — small per-row boosts, written by someone who pretends to understand the manual.</p>
         </div>
       </details>
@@ -113,9 +115,34 @@
       </div>
     </div>
 
+    <!-- Leaderboard modal -->
+    <div class="asc-modal hidden" id="modal-lb">
+      <div class="asc-modal-box wide">
+        <button type="button" class="asc-modal-close" data-close="lb">&times;</button>
+        <h2>Protocol rating</h2>
+        <p class="asc-lb-intro">Rating combines your <strong>highest phase reached</strong>, total Energy earned, regions, and Quantum discharges. Phases never go backward — only your score goes up.</p>
+        <div class="asc-lb-actions">
+          <label class="asc-lb-label">Display name (24 chars)</label>
+          <input type="text" id="asc-lb-name" class="asc-lb-input" maxlength="24" autocomplete="nickname" placeholder="Operator">
+          <div class="asc-lb-row">
+            <span class="asc-lb-meta">Current rating: <strong id="asc-lb-rating">0</strong></span>
+            <button type="button" class="asc-lb-submit" id="asc-lb-submit">Upload if new best</button>
+          </div>
+          <p class="asc-lb-hint">Only uploads when your rating beats your last successful upload (stored in this browser).</p>
+          <p class="asc-lb-status" id="asc-lb-status" role="status"></p>
+        </div>
+        <h3 class="asc-lb-sub">Global board</h3>
+        <div id="asc-lb-table" class="asc-lb-table-wrap"></div>
+      </div>
+    </div>
+
     <div class="asc-rare-banner hidden" id="rare-banner"></div>
   </div>
 
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <script src="ascension.js"></script>
 </body>
 </html>
