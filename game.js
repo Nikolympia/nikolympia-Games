@@ -240,14 +240,14 @@ function startMusic(){
   const notes=[220,261,330,261,220,196,220,330];let ni=0;
   function arp(){
     if(!musicPlaying)return;
-    if(state==='playing'||state==='levelup'){
+    if((state==='playing'||state==='levelup')&&!gamePaused){
       tone(notes[ni%notes.length],.18,'triangle',.014);
     }
     ni++;setTimeout(arp,280);
   }
   function kick(){
     if(!musicPlaying)return;
-    if(state==='playing'||state==='levelup'){
+    if((state==='playing'||state==='levelup')&&!gamePaused){
       const o=actx.createOscillator(),g=actx.createGain();
       o.type='sine';o.frequency.value=80;o.frequency.exponentialRampToValueAtTime(30,actx.currentTime+.1);
       g.gain.value=.05;g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+.15);
@@ -259,11 +259,102 @@ function startMusic(){
 }
 function stopMusic(){musicPlaying=false;musicNodes.forEach(n=>{try{n.stop()}catch{}});musicNodes=[];}
 
-// ──── PERSISTENCE ────
+// ──── PERSISTENCE (+ cloud sync when signed into Firebase on same site) ────
 const SAVE_KEY='void_survivors_save';
-function defaultSave(){return{coins:0,totalKills:0,maxTime:0,maxLevel:0,meta:{},leaderboard:[],username:''}}
-function loadSave(){try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));return d||defaultSave()}catch{return defaultSave()}}
-function saveSave(s){try{localStorage.setItem(SAVE_KEY,JSON.stringify(s))}catch{}}
+const CLOUD_DEBOUNCE_MS=1500;
+let cloudSaveTimer=null,pendingCloudPayload=null;
+
+function defaultSave(){return{coins:0,totalKills:0,maxTime:0,maxLevel:0,meta:{},leaderboard:[],username:'',updatedAt:0}}
+function normalizeSave(raw){
+  const d=defaultSave();
+  if(!raw||typeof raw!=='object')return d;
+  d.coins=Math.max(0,Math.floor(Number(raw.coins)||0));
+  d.totalKills=Math.max(0,Math.floor(Number(raw.totalKills)||0));
+  d.maxTime=Math.max(0,Number(raw.maxTime)||0);
+  d.maxLevel=Math.max(0,Math.floor(Number(raw.maxLevel)||0));
+  d.meta={};
+  if(raw.meta&&typeof raw.meta==='object'){
+    for(const[id,def]of Object.entries(META)){
+      const v=Math.floor(Number(raw.meta[id])||0);
+      if(v>0)d.meta[id]=Math.min(def.max,v);
+    }
+  }
+  d.leaderboard=Array.isArray(raw.leaderboard)?raw.leaderboard.slice(0,10):[];
+  d.username=(typeof raw.username==='string'?raw.username:'').replace(/[^a-zA-Z0-9_ -]/g,'').slice(0,16)||'';
+  d.updatedAt=Math.floor(Number(raw.updatedAt)||0);
+  return d;
+}
+function loadSave(){try{const d=JSON.parse(localStorage.getItem(SAVE_KEY));return normalizeSave(d)}catch{return defaultSave()}}
+function saveSave(s,opts){
+  opts=opts||{};
+  if(!opts.preserveTimestamp)s.updatedAt=Date.now();
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify(s))}catch{}
+  if(!opts.skipCloud){
+    if(opts.immediateCloud)pushSaveToCloud(normalizeSave(s));
+    else scheduleCloudPush(s);
+  }
+}
+function scheduleCloudPush(s){
+  if(typeof firebase==='undefined'||typeof firebase.auth!=='function'||!firebase.auth().currentUser||!window.__NK_FB_DB)return;
+  pendingCloudPayload=normalizeSave(s);
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer=setTimeout(()=>{pushSaveToCloud(pendingCloudPayload);pendingCloudPayload=null},CLOUD_DEBOUNCE_MS);
+}
+async function pushSaveToCloud(s){
+  const u=firebase.auth().currentUser,db=window.__NK_FB_DB;
+  if(!u||!db||!s)return;
+  try{
+    const payload=normalizeSave(s);
+    payload.updatedAt=payload.updatedAt||Date.now();
+    await db.collection('users').doc(u.uid).set({
+      voidSurvivorsSave:payload,
+      voidSaveUpdatedAt:payload.updatedAt
+    },{merge:true});
+  }catch(e){console.warn('Cloud save failed:',e)}
+}
+async function pullSaveFromCloud(){
+  const u=firebase.auth().currentUser,db=window.__NK_FB_DB;
+  if(!u||!db)return null;
+  try{
+    const doc=await db.collection('users').doc(u.uid).get();
+    if(!doc.exists)return null;
+    const d=doc.data();
+    const raw=d.voidSurvivorsSave;
+    if(!raw||typeof raw!=='object')return null;
+    const s=normalizeSave(raw);
+    const topT=Math.max(s.updatedAt||0,Math.floor(Number(d.voidSaveUpdatedAt)||0));
+    if(topT)s.updatedAt=topT;
+    return s;
+  }catch(e){console.warn('Cloud load failed:',e);return null}
+}
+function initCloudSaveSync(){
+  if(typeof firebase==='undefined'||!window.__NK_FB_DB||typeof firebase.auth!=='function')return;
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='hidden'&&pendingCloudPayload&&firebase.auth().currentUser)
+      pushSaveToCloud(pendingCloudPayload);
+  });
+  firebase.auth().onAuthStateChanged(async user=>{
+    if(!user)return;
+    if(state==='playing'){
+      pushSaveToCloud(loadSave());
+      return;
+    }
+    try{
+      const local=loadSave();
+      const localT=local.updatedAt||0;
+      const cloud=await pullSaveFromCloud();
+      const cloudT=cloud?cloud.updatedAt||0:0;
+      if(cloud&&cloudT>localT){
+        saveSave(cloud,{preserveTimestamp:true,skipCloud:true});
+        if(state==='title')showTitle();
+        else if(state==='shop')showShop();
+        else if(state==='charselect')showCharSelect();
+      }else{
+        await pushSaveToCloud(local);
+      }
+    }catch(e){console.warn('Save sync:',e)}
+  });
+}
 function getCoins(){return loadSave().coins}
 function addCoins(n){const s=loadSave();s.coins+=n;saveSave(s);return s.coins}
 function isCharUnlocked(id){
@@ -275,7 +366,7 @@ function isCharUnlocked(id){
   return false;
 }
 function getUsername(){return loadSave().username||'Player'}
-function setUsername(name){const s=loadSave();s.username=name.trim().slice(0,16)||'Player';saveSave(s);return s.username}
+function setUsername(name){const s=loadSave();s.username=name.trim().slice(0,16)||'Player';saveSave(s,{immediateCloud:true});return s.username}
 
 // ──── ONLINE LEADERBOARD ────
 let globalLB=[];
@@ -390,7 +481,7 @@ const MOB={
 
 // ──── GLOBALS ────
 let canvas,ctx,W,H,dpr;
-let state='title', gtime=0, lastTs=0, kills=0, bossesKilled=0;
+let state='title', gamePaused=false, gtime=0, lastTs=0, kills=0, bossesKilled=0;
 let player,enemies,projectiles,gems,particles,dmgNums,lightningArcs,groundZones,chests;
 let camera,input,spawnTimer;
 let wTimers,orbAngle,orbHits,pendingLvls,bossLevels;
@@ -437,7 +528,15 @@ function initGame(charId){
 // ──── INPUT ────
 function setupInput(){
   input={keys:{},touch:null};
-  window.addEventListener('keydown',e=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')return;input.keys[e.key.toLowerCase()]=true;if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()))e.preventDefault()});
+  window.addEventListener('keydown',e=>{
+    if(document.activeElement&&document.activeElement.tagName==='INPUT')return;
+    const key=e.key.toLowerCase();
+    if((key==='escape'||key==='p')&&state==='playing'){
+      if(key==='escape'||!e.repeat){toggleGamePause();e.preventDefault();return}
+    }
+    input.keys[key]=true;
+    if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(key))e.preventDefault();
+  });
   window.addEventListener('keyup',e=>{if(document.activeElement&&document.activeElement.tagName==='INPUT')return;input.keys[e.key.toLowerCase()]=false});
   canvas.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0];input.touch={sx:t.clientX,sy:t.clientY,cx:t.clientX,cy:t.clientY}},{passive:false});
   canvas.addEventListener('touchmove',e=>{e.preventDefault();if(input.touch){const t=e.touches[0];input.touch.cx=t.clientX;input.touch.cy=t.clientY}},{passive:false});
@@ -973,6 +1072,7 @@ function checkEvolutions(){
 
 // ──── END RUN ────
 function endRun(victory){
+  gamePaused=false;
   stopMusic();
   const sv=loadSave();
   const coinsEarned=kills+Math.floor(gtime/60)*5+bossesKilled*50;
@@ -983,7 +1083,7 @@ function endRun(victory){
   sv.leaderboard.push({name:getUsername(),time:gtime,kills,level:player.level,char:selectedChar,date:new Date().toLocaleDateString()});
   sv.leaderboard.sort((a,b)=>b.time-a.time);
   sv.leaderboard=sv.leaderboard.slice(0,10);
-  saveSave(sv);
+  saveSave(sv,{immediateCloud:true});
 
   const uname=getUsername();
   const onlineScore=kills+Math.floor(gtime)*10;
@@ -1108,7 +1208,7 @@ function showShop(){
     if(canBuy){
       item.querySelector('.buy-btn').onclick=()=>{
         const s2=loadSave();if(s2.coins<def.costs[s2.meta[id]||0])return;
-        s2.coins-=def.costs[s2.meta[id]||0];s2.meta[id]=(s2.meta[id]||0)+1;saveSave(s2);showShop();
+        s2.coins-=def.costs[s2.meta[id]||0];s2.meta[id]=(s2.meta[id]||0)+1;saveSave(s2,{immediateCloud:true});showShop();
       };
     }
     ctr.appendChild(item);
@@ -1117,8 +1217,33 @@ function showShop(){
 }
 
 function hideAll(){
-  ['title-screen','char-screen','shop-screen','levelup-screen','gameover-screen','victory-screen','lb-screen'].forEach(id=>
+  ['title-screen','char-screen','shop-screen','levelup-screen','gameover-screen','victory-screen','lb-screen','pause-screen'].forEach(id=>
     document.getElementById(id).classList.add('hidden'));
+}
+
+function syncPauseUi(){
+  const btn=document.getElementById('pause-toggle');
+  const overlay=document.getElementById('pause-screen');
+  if(!btn||!overlay)return;
+  if(state==='levelup')gamePaused=false;
+  if(state==='playing'){
+    btn.classList.remove('hidden');
+    if(gamePaused)overlay.classList.remove('hidden');
+    else overlay.classList.add('hidden');
+  }else{
+    btn.classList.add('hidden');
+    overlay.classList.add('hidden');
+  }
+}
+
+function toggleGamePause(){
+  if(state!=='playing')return;
+  gamePaused=!gamePaused;
+  if(gamePaused){
+    for(const k of Object.keys(input.keys))input.keys[k]=false;
+    input.touch=null;
+  }
+  syncPauseUi();
 }
 function showGlobalLBScreen(){
   hideAll();
@@ -1132,7 +1257,7 @@ function showGlobalLBScreen(){
 function startGame(charId){
   const nameVal=document.getElementById('username-input').value;
   setUsername(nameVal||'Player');
-  hideAll();initAudio();initGame(charId);state='playing';lastTs=0;startMusic();
+  hideAll();initAudio();initGame(charId);gamePaused=false;state='playing';lastTs=0;startMusic();syncPauseUi();
 }
 
 // ──── RENDER ────
@@ -1347,7 +1472,8 @@ function gameLoop(ts){
   requestAnimationFrame(gameLoop);
   const now=ts/1000;if(lastTs===0){lastTs=now;return}
   const dt=Math.min(now-lastTs,.1);lastTs=now;
-  if(state==='playing')update(dt);
+  if(state==='playing'&&!gamePaused)update(dt);
+  syncPauseUi();
   if(state!=='title'&&state!=='charselect'&&state!=='shop')render();
 }
 
@@ -1361,6 +1487,7 @@ function resize(){
 window.addEventListener('load',()=>{
   canvas=document.getElementById('game-canvas');ctx=canvas.getContext('2d');
   resize();window.addEventListener('resize',resize);setupInput();
+  initCloudSaveSync();
   showTitle();
 
   document.getElementById('play-btn').onclick=()=>showCharSelect();
@@ -1371,6 +1498,9 @@ window.addEventListener('load',()=>{
   document.getElementById('back-lb-btn').onclick=()=>showTitle();
   document.getElementById('restart-btn').onclick=()=>showTitle();
   document.getElementById('victory-btn').onclick=()=>showTitle();
+
+  document.getElementById('pause-toggle').onclick=()=>toggleGamePause();
+  document.getElementById('resume-btn').onclick=()=>{if(gamePaused)toggleGamePause()};
 
   requestAnimationFrame(gameLoop);
 });
