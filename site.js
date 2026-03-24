@@ -7,6 +7,15 @@ const GAMES_DB = {
     tags: ['Survival', 'Roguelike', 'Action'],
     desc: 'Survive waves of enemies, grab weapons, evolve them, fight bosses every 10 levels. Global leaderboard included.',
     live: true
+  },
+  'ascension-protocol': {
+    id: 'ascension-protocol',
+    name: 'Ascension Protocol',
+    url: 'ascension.html',
+    img: 'ascension_cover.svg',
+    tags: ['Incremental', 'Strategy', 'Idle'],
+    desc: 'Long-form AI awakening clicker: six phases, five currencies, network map, space colonies, quantum bursts — built for days of progression.',
+    live: true
   }
 };
 

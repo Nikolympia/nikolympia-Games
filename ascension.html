@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#030308">
+  <title>Ascension Protocol — Nikolympia</title>
+  <link rel="stylesheet" href="ascension.css">
+</head>
+<body>
+  <div id="asc-app">
+    <div class="asc-atmosphere" aria-hidden="true">
+      <div class="asc-bg-scanlines" id="bg-scanlines"></div>
+      <div class="asc-glitch-overlay" id="glitch-overlay"></div>
+    </div>
+    <a href="index.html" class="asc-hub" title="Hub">&#8592;</a>
+
+    <header class="asc-topbar">
+      <div class="asc-brand">
+        <span class="asc-logo">ASCENSION</span>
+        <span class="asc-sub">PROTOCOL</span>
+      </div>
+      <div class="asc-phase-pill is-locked-ui" id="phase-pill" hidden>PHASE <span id="phase-num">1</span></div>
+      <button type="button" class="asc-icon-btn is-locked-ui" id="btn-log" title="System log" hidden>LOG</button>
+      <button type="button" class="asc-icon-btn is-locked-ui" id="btn-ach" title="Achievements" hidden>★</button>
+    </header>
+
+    <div class="asc-resources" id="res-bar"></div>
+
+    <div class="asc-objective" id="objective-strip">
+      <span class="obj-label">Next</span>
+      <span class="obj-text" id="objective-text">—</span>
+    </div>
+
+    <div class="asc-body">
+    <aside class="asc-briefing" id="asc-briefing" aria-label="Mission briefing">
+      <h2 class="asc-briefing-title">What this is</h2>
+      <p class="asc-briefing-p">
+        Something ancient just answered when you touched the core — not with words, but with hunger. The <strong class="asc-briefing-em">Ascension Protocol</strong> is a machine that learns from every choice you make: each tap is a pulse of intent, every upgrade a new law it obeys.
+      </p>
+      <h3 class="asc-briefing-sub">Your mission</h3>
+      <p class="asc-briefing-p">
+        Feed it until it outgrows the lab: automate Energy, spread across the <strong class="asc-briefing-em">Network</strong>, claim worlds, then bend <strong class="asc-briefing-em">Quantum</strong> to your will. There are no clocks locking you out — if a phase feels far away, push <strong class="asc-briefing-em">Energy</strong> higher or follow the <strong class="asc-briefing-em">Directives</strong> on the right; progress always comes from play, never from waiting on real time.
+      </p>
+    </aside>
+    <main class="asc-main">
+      <section class="asc-core">
+        <button type="button" class="asc-orb" id="btn-collect" aria-label="Generate energy">
+          <span class="orb-inner" id="orb-inner"></span>
+          <span class="orb-label" id="orb-label">COLLECT</span>
+          <span class="orb-gain" id="orb-gain">+0</span>
+        </button>
+        <div class="asc-stats-row" id="stats-row">
+          <span id="stat-eps" class="hidden">0 /s</span>
+          <span class="dot hidden" id="stat-dot">·</span>
+          <span id="stat-offline"></span>
+        </div>
+      </section>
+
+      <p class="asc-panel-hint" id="panel-hint">Available actions</p>
+
+      <nav class="asc-tabs hidden" id="asc-tabs" aria-label="Panels">
+        <button type="button" class="asc-tab is-active" data-panel="upgrades" id="tab-core">Core</button>
+        <button type="button" class="asc-tab" data-panel="generators" id="tab-gens">Generators</button>
+        <button type="button" class="asc-tab hidden" data-panel="map" id="tab-map">Network</button>
+        <button type="button" class="asc-tab hidden" data-panel="space" id="tab-space">Space</button>
+        <button type="button" class="asc-tab hidden" data-panel="quantum" id="tab-quantum">Quantum</button>
+      </nav>
+
+      <div class="asc-panels">
+        <div class="asc-panel is-visible" id="panel-upgrades"></div>
+        <div class="asc-panel" id="panel-generators"></div>
+        <div class="asc-panel" id="panel-map"></div>
+        <div class="asc-panel" id="panel-space"></div>
+        <div class="asc-panel" id="panel-quantum"></div>
+      </div>
+    </main>
+
+    <aside class="asc-checklist" id="asc-checklist" aria-label="Mission checklist">
+      <h2 class="asc-checklist-title">Directives</h2>
+      <p class="asc-checklist-sub">Boxes check themselves when you complete each step.</p>
+      <ul class="asc-checklist-list" id="checklist-root"></ul>
+    </aside>
+    </div>
+
+    <div class="asc-toast" id="toast" role="status"></div>
+
+    <!-- Log modal -->
+    <div class="asc-modal hidden" id="modal-log">
+      <div class="asc-modal-box wide">
+        <button type="button" class="asc-modal-close" data-close="log">&times;</button>
+        <h2>System log</h2>
+        <div class="asc-log" id="log-content"></div>
+      </div>
+    </div>
+
+    <!-- Achievements modal -->
+    <div class="asc-modal hidden" id="modal-ach">
+      <div class="asc-modal-box">
+        <button type="button" class="asc-modal-close" data-close="ach">&times;</button>
+        <h2>Achievements</h2>
+        <div id="ach-list" class="asc-ach-list"></div>
+      </div>
+    </div>
+
+    <div class="asc-rare-banner hidden" id="rare-banner"></div>
+  </div>
+
+  <script src="ascension.js"></script>
+</body>
+</html>
