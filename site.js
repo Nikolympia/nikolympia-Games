@@ -6,7 +6,11 @@ const GAMES_DB = {
     img: 'void_survivors_cover.png',
     tags: ['Survival', 'Roguelike', 'Action'],
     desc: 'Survive waves of enemies, grab weapons, evolve them, fight bosses every 10 levels. Global leaderboard included.',
-    live: true
+    pitch: 'Survive waves, evolve weapons, fight bosses every 10 levels.',
+    sessionHint: '~5–15 min runs · high intensity',
+    vibe: 'intense',
+    bullets: ['Roguelike gear that evolves mid-run', 'Boss every 10 floors', 'Post your score worldwide'],
+    live: true,
   },
   'ascension-protocol': {
     id: 'ascension-protocol',
@@ -15,7 +19,11 @@ const GAMES_DB = {
     img: 'ascension_cover.svg',
     tags: ['Incremental', 'Strategy', 'Idle'],
     desc: 'Long-form AI awakening clicker: six phases, five currencies, network map, space colonies, quantum bursts — built for days of progression.',
-    live: true
+    pitch: 'Idle clicker with six phases, five currencies, and a real endgame.',
+    sessionHint: 'Long sessions · chill grind',
+    vibe: 'chill',
+    bullets: ['Six progression phases', 'Network map & space colonies', 'Quantum bursts when you go deep'],
+    live: true,
   },
   'up-or-lose': {
     id: 'up-or-lose',
@@ -24,9 +32,355 @@ const GAMES_DB = {
     img: 'up_or_lose_cover.svg',
     tags: ['Arcade', 'Platformer', 'Endless'],
     desc: 'Auto-jump vertical climb: moving platforms, boosts, teleports, breakables — don’t fall. Global podium and local best.',
-    live: true
-  }
+    pitch: 'Auto-jump climb — don’t fall. One more try every time.',
+    sessionHint: '~1–3 min runs · quick dopamine',
+    vibe: 'quick',
+    bullets: ['One-thumb friendly', 'Boosts, teleports, breakables', 'Climb the global height board'],
+    live: true,
+  },
 };
+
+/** Hero shows every live game — fixed order for scanability. */
+const HERO_GAME_ORDER = ['void-survivors', 'up-or-lose', 'ascension-protocol'];
+
+/** Latest #1 per game for hub cards + hero teaser (updated after each LB fetch). */
+let HUB_LB_TOP = {};
+const hubLbPrevTopScores = {};
+let homeLbFetchSeq = 0;
+let homeLbAutoRefreshStarted = false;
+let homeLbLastFetchAt = 0;
+
+function formatLbScore(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const x = Math.floor(Number(n));
+  if (x >= 1e9) return (x / 1e9).toFixed(2) + 'B';
+  if (x >= 1e6) return (x / 1e6).toFixed(2) + 'M';
+  if (x >= 1e3) return (x / 1e3).toFixed(1) + 'k';
+  return String(x);
+}
+
+const HOME_LB_BOARDS = [
+  {
+    col: 'void_survivors_leaderboard',
+    title: 'Void Survivors',
+    href: 'game.html',
+    gid: 'void-survivors',
+    unit: (s) => formatLbScore(s) + ' pts',
+  },
+  {
+    col: 'up_or_lose_leaderboard',
+    title: 'Up or Lose',
+    href: 'up-or-lose.html',
+    gid: 'up-or-lose',
+    unit: (s) => formatLbScore(s) + ' px',
+  },
+  {
+    col: 'ascension_leaderboard',
+    title: 'Ascension Protocol',
+    href: 'ascension.html',
+    gid: 'ascension-protocol',
+    unit: (s) => 'Rating ' + formatLbScore(s),
+  },
+];
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+function readLocalVoidBestRunScore() {
+  try {
+    const raw = localStorage.getItem('void_survivors_save');
+    if (!raw) return 0;
+    const d = JSON.parse(raw);
+    const lb = Array.isArray(d.leaderboard) ? d.leaderboard : [];
+    let best = 0;
+    for (const e of lb) {
+      const kills = Math.floor(Number(e.kills) || 0);
+      const t = Math.floor(Number(e.time) || 0);
+      const sc = kills + t * 10;
+      if (sc > best) best = sc;
+    }
+    return best;
+  } catch {
+    return 0;
+  }
+}
+
+function readLocalUpOrLoseBest() {
+  try {
+    const o = JSON.parse(localStorage.getItem('up_or_lose_v1') || '{}');
+    return Math.max(0, parseInt(o.best, 10) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function readLocalAscensionLbBest() {
+  try {
+    const o = JSON.parse(localStorage.getItem('ascension_protocol_v1') || '{}');
+    return Math.max(0, parseInt(o.lbBestScore, 10) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function getPersonalBest(gid) {
+  if (gid === 'void-survivors') return readLocalVoidBestRunScore();
+  if (gid === 'up-or-lose') return readLocalUpOrLoseBest();
+  if (gid === 'ascension-protocol') return readLocalAscensionLbBest();
+  return 0;
+}
+
+function renderHomeLbPersonalLine(b) {
+  const pb = getPersonalBest(b.gid);
+  if (!b.top || b.top.score <= 0) {
+    return '<p class="home-lb-you home-lb-you--open">Board’s open — first run could be #1.</p>';
+  }
+  if (pb <= 0) {
+    return '<p class="home-lb-you">No local PB yet — <strong>one run</strong> to join the chase.</p>';
+  }
+  const u = b.unit;
+  if (pb >= b.top.score) {
+    return `<p class="home-lb-you home-lb-you--tight">Your PB: <strong>${u(pb)}</strong> · In range — <strong>submit a run</strong> and steal the crown.</p>`;
+  }
+  const need = b.top.score - pb;
+  return `<p class="home-lb-you">Your PB: <strong>${u(pb)}</strong> · Need <strong>+${formatLbScore(need)}</strong> to tie #1</p>`;
+}
+
+function renderGameCompetitionHtml(gid) {
+  const b = HOME_LB_BOARDS.find((x) => x.gid === gid);
+  if (!b) return '';
+  const top = HUB_LB_TOP[gid];
+  const pb = getPersonalBest(gid);
+  let html = '';
+  if (top && top.score > 0) {
+    const nm = escapeHtml(String(top.name || 'Player').slice(0, 20));
+    html += `<p class="game-card-top1">#1 globally: <strong>${b.unit(top.score)}</strong> <span class="game-card-top1-name">${nm}</span></p>`;
+  } else {
+    html += `<p class="game-card-top1 game-card-top1--empty">#1 slot is <strong>empty</strong> — yours to take.</p>`;
+  }
+  if (top && top.score > 0) {
+    if (pb <= 0) {
+      html += `<p class="game-card-near">No PB yet — first run counts.</p>`;
+    } else if (pb >= top.score) {
+      html += `<p class="game-card-near game-card-near--hot">You’re in striking distance — one big run could do it.</p>`;
+    } else {
+      html += `<p class="game-card-near">Need <strong>+${formatLbScore(top.score - pb)}</strong> to tie #1</p>`;
+    }
+  }
+  return html;
+}
+
+function updateHeroLiveTeaser(results) {
+  const el = document.getElementById('hero-live-teaser');
+  if (!el) return;
+  const parts = results
+    .filter((r) => r.top && r.top.score > 0)
+    .map((r) => {
+      const nm = escapeHtml(String(r.top.name || 'Player').slice(0, 14));
+      return `<span class="hero-teaser-chip"><strong>${r.title}</strong> · ${r.unit(r.top.score)} · ${nm}</span>`;
+    });
+  if (!parts.length) {
+    el.setAttribute('hidden', '');
+    el.innerHTML = '';
+    return;
+  }
+  el.removeAttribute('hidden');
+  el.innerHTML = '<span class="hero-teaser-label">Live boards:</span> ' + parts.join('');
+}
+
+function refreshHomeLbUpdatedText() {
+  const el = document.getElementById('home-lb-updated');
+  if (!el || !homeLbLastFetchAt) return;
+  const sec = Math.floor((Date.now() - homeLbLastFetchAt) / 1000);
+  if (sec < 12) el.textContent = 'Updated just now';
+  else if (sec < 60) el.textContent = `Updated ${sec}s ago`;
+  else if (sec < 3600) el.textContent = `Updated ${Math.floor(sec / 60)}m ago`;
+  else el.textContent = `Updated ${Math.floor(sec / 3600)}h ago`;
+}
+
+function startHomeLbAutoRefresh() {
+  if (homeLbAutoRefreshStarted) return;
+  homeLbAutoRefreshStarted = true;
+  setInterval(() => {
+    if (document.getElementById('home-lb-root') && window.__NK_FB_DB && typeof firebase !== 'undefined' && firebase.firestore) {
+      fetchAndRenderHomeLb();
+    }
+  }, 60000);
+  setInterval(refreshHomeLbUpdatedText, 8000);
+}
+
+function getPlayStreakCount() {
+  try {
+    const o = JSON.parse(localStorage.getItem('nk_play_streak') || '{}');
+    const today = new Date().toISOString().slice(0, 10);
+    if (o.day !== today) return 0;
+    return Math.max(0, parseInt(o.count, 10) || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function bumpPlayStreak() {
+  const key = 'nk_play_streak';
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const raw = localStorage.getItem(key);
+    let o = raw ? JSON.parse(raw) : {};
+    if (o.day === today) return Math.max(1, parseInt(o.count, 10) || 1);
+    const y = new Date();
+    y.setUTCDate(y.getUTCDate() - 1);
+    const ystr = y.toISOString().slice(0, 10);
+    let count = 1;
+    if (o.day === ystr) count = Math.min(99, (parseInt(o.count, 10) || 0) + 1);
+    o = { day: today, count };
+    localStorage.setItem(key, JSON.stringify(o));
+    return count;
+  } catch {
+    return 1;
+  }
+}
+
+function renderHeroGames() {
+  const slot = document.getElementById('hero-games-slot');
+  if (!slot) return;
+  const streak = getPlayStreakCount();
+  const streakHtml =
+    streak >= 2
+      ? `<p class="hero-streak-banner" aria-label="Play streak">🔥 <strong>${streak}-day</strong> play streak — don’t break it</p>`
+      : '';
+  const cards = HERO_GAME_ORDER.map((id, i) => {
+    const g = GAMES_DB[id];
+    if (!g || !g.live) return '';
+    const delay = (i * 0.06).toFixed(2);
+    return `<article class="hero-mini-card hero-mini-card--${g.vibe} anim-card" style="animation-delay:${delay}s">
+      <a href="${g.url}" class="hero-mini-media" onclick="trackPlay('${g.id}')">
+        <span class="hero-mini-live" aria-hidden="true">LIVE</span>
+        <img src="${g.img}" alt="" width="400" height="225" loading="eager">
+      </a>
+      <div class="hero-mini-body">
+        <h3 class="hero-mini-title">${g.name}</h3>
+        <p class="hero-mini-pitch">${g.pitch}</p>
+        <p class="hero-mini-meta">${g.sessionHint}</p>
+        <a href="${g.url}" class="hero-mini-play" onclick="trackPlay('${g.id}')">▶ Run it</a>
+      </div>
+    </article>`;
+  }).join('');
+  slot.innerHTML =
+    streakHtml +
+    `<p class="hero-games-label">All live · tap a run</p><div class="hero-games-grid">${cards}</div>`;
+}
+
+function renderComingSoonRow() {
+  const el = document.getElementById('coming-soon-inner');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="coming-card"><span class="coming-ico" aria-hidden="true">🔮</span><div><strong>Arena drop #4</strong><span>Fast sessions · code name TBA</span></div></div>
+    <div class="coming-card"><span class="coming-ico" aria-hidden="true">🎮</span><div><strong>Experimental modes</strong><span>New rule sets &amp; weekly challenges</span></div></div>`;
+}
+
+async function fetchAndRenderHomeLb() {
+  const root = document.getElementById('home-lb-root');
+  if (!root) return;
+  const seq = ++homeLbFetchSeq;
+  const db = typeof window !== 'undefined' ? window.__NK_FB_DB : null;
+
+  if (!db || typeof firebase === 'undefined' || !firebase.firestore) {
+    if (seq !== homeLbFetchSeq) return;
+    root.innerHTML =
+      '<p class="home-lb-off">Leaderboards load when you’re online with Firebase. Every game still runs instantly.</p>';
+    HUB_LB_TOP = {};
+    homeLbLastFetchAt = Date.now();
+    const up = document.getElementById('home-lb-updated');
+    if (up) up.textContent = 'Offline — boards refresh when connected';
+    updateHeroLiveTeaser([]);
+    renderAllGamesGrid();
+    return;
+  }
+
+  const results = await Promise.all(
+    HOME_LB_BOARDS.map(async (b) => {
+      try {
+        const snap = await db.collection(b.col).orderBy('score', 'desc').limit(8).get();
+        const rows = snap.docs.map((d) => d.data());
+        if (!rows.length) return { ...b, top: null };
+        const best = new Map();
+        for (const r of rows) {
+          const key = String(r.name || 'Player')
+            .trim()
+            .toLowerCase();
+          const sc = Math.floor(Number(r.score) || 0);
+          if (!best.has(key) || sc > best.get(key).score) best.set(key, { name: r.name || 'Player', score: sc });
+        }
+        const sorted = [...best.values()].sort((a, b) => b.score - a.score);
+        return { ...b, top: sorted[0] || null };
+      } catch (e) {
+        console.warn('[Hub] LB fetch', b.col, e);
+        return { ...b, top: null, err: true };
+      }
+    })
+  );
+
+  if (seq !== homeLbFetchSeq) return;
+
+  HUB_LB_TOP = {};
+  for (const b of results) {
+    HUB_LB_TOP[b.gid] = b.top && b.top.score > 0 ? { name: String(b.top.name || 'Player'), score: b.top.score } : null;
+  }
+
+  homeLbLastFetchAt = Date.now();
+  refreshHomeLbUpdatedText();
+  updateHeroLiveTeaser(results);
+  startHomeLbAutoRefresh();
+
+  root.innerHTML = results
+    .map((b, i) => {
+      const youLine = renderHomeLbPersonalLine(b);
+      if (b.top) {
+        const name = escapeHtml(String(b.top.name || 'Player').slice(0, 24));
+        return `<div class="home-lb-card anim-card" style="animation-delay:${i * 0.06}s">
+          <h4 class="home-lb-game">${b.title}</h4>
+          <p class="home-lb-rank-label">#1 worldwide</p>
+          <p class="home-lb-champion-name">${name}</p>
+          <p class="home-lb-score">${b.unit(b.top.score)}</p>
+          ${youLine}
+          <a href="${b.href}" class="home-lb-cta" onclick="trackPlay('${b.gid}')">Beat this →</a>
+        </div>`;
+      }
+      return `<div class="home-lb-card home-lb-card--empty anim-card" style="animation-delay:${i * 0.06}s">
+          <h4 class="home-lb-game">${b.title}</h4>
+          <p class="home-lb-empty">No scores yet — <strong>you’re #1</strong> waiting to happen.</p>
+          ${youLine}
+          <a href="${b.href}" class="home-lb-cta" onclick="trackPlay('${b.gid}')">Play first →</a>
+        </div>`;
+    })
+    .join('');
+
+  const cards = root.querySelectorAll('.home-lb-card');
+  results.forEach((b, i) => {
+    const scoreEl = cards[i] && cards[i].querySelector('.home-lb-score');
+    if (b.top && scoreEl) {
+      const prev = hubLbPrevTopScores[b.gid];
+      if (prev !== undefined && prev !== b.top.score) {
+        scoreEl.classList.add('home-lb-score--pop');
+        setTimeout(() => scoreEl.classList.remove('home-lb-score--pop'), 700);
+      }
+      hubLbPrevTopScores[b.gid] = b.top.score;
+    } else {
+      hubLbPrevTopScores[b.gid] = 0;
+    }
+  });
+
+  renderAllGamesGrid();
+}
+
+function syncRetentionStrip() {
+  const el = document.getElementById('retention-strip');
+  if (!el) return;
+  el.classList.toggle('retention-strip--hidden', !!currentUser);
+}
 
 const AVATARS = ['😎','🎮','👾','🔥','⚡','💀','🐉','🎯','🚀','🌟','🤖','🦊'];
 
@@ -106,6 +460,7 @@ function addRecent(gameId) {
   recent.unshift({ id: gameId, time: Date.now() });
   if (recent.length > 10) recent = recent.slice(0, 10);
   localStorage.setItem('nk_recent', JSON.stringify(recent));
+  bumpPlayStreak();
 }
 
 // ─── PLAY TRACKING ───
@@ -135,6 +490,7 @@ function renderNavAccount() {
 
   if (!currentUser) {
     container.innerHTML = '<button class="nav-signin" onclick="openAuthModal()">Sign In</button>';
+    syncRetentionStrip();
     return;
   }
 
@@ -162,6 +518,7 @@ function renderNavAccount() {
         <button class="pd-signout" onclick="signOut()">Sign Out</button>
       </div>
     </div>`;
+  syncRetentionStrip();
 }
 
 // ─── AUTH MODAL ───
@@ -175,8 +532,13 @@ function openAuthModal(mode) {
   const modal = overlay.querySelector('.modal');
   modal.innerHTML = `
     <button class="modal-close" onclick="closeAuthModal()">&times;</button>
-    <h2>Sign In</h2>
-    <p>Sign in to save your stats, like games, and sync across devices.</p>
+    <h2>Save your progress</h2>
+    <p class="modal-lead">Free account — games stay free. No paywall.</p>
+    <ul class="modal-benefits">
+      <li>♥ Like games and sync across devices</li>
+      <li>📊 Play counts &amp; history</li>
+      <li>🏆 Use your name on leaderboards</li>
+    </ul>
 
     <button class="google-btn" onclick="googleSignIn()">
       <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#FF3D00" d="m6.306 14.691 6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
@@ -356,6 +718,13 @@ document.addEventListener('click', e => {
 });
 
 // ─── GAME CARDS ───
+function renderAllGamesGrid() {
+  const allEl = document.getElementById('all-games-grid');
+  if (!allEl) return;
+  const liveGames = Object.values(GAMES_DB).filter((g) => g.live);
+  allEl.innerHTML = liveGames.map((g, i) => renderGameCard(g, { cardIndex: i })).join('');
+}
+
 function renderGameCard(game, opts = {}) {
   const liked = getLiked();
   const isLiked = liked.includes(game.id);
@@ -370,16 +739,25 @@ function renderGameCard(game, opts = {}) {
     </a>`;
   }
 
-  return `<div class="game-card">
-    <img src="${game.img}" alt="${game.name}" class="game-card-img" loading="lazy">
+  const vibe = game.vibe || 'default';
+  const sessionLine = game.sessionHint ? `<p class="game-card-session">${game.sessionHint}</p>` : '';
+  const delayAttr = opts.cardIndex != null ? ` style="animation-delay:${opts.cardIndex * 0.05}s"` : '';
+  const comp = renderGameCompetitionHtml(game.id);
+  return `<div class="game-card game-card--${vibe} anim-card"${delayAttr}>
+    <div class="game-card-media">
+      <span class="game-card-live-pill" aria-hidden="true">LIVE</span>
+      <img src="${game.img}" alt="${game.name}" class="game-card-img" loading="lazy">
+    </div>
     <div class="game-card-body">
       <h3>${game.name}</h3>
       <div class="game-card-tags">
         ${game.tags.map(t => `<span class="game-tag${t === 'Action' ? ' action' : ''}">${t}</span>`).join('')}
       </div>
+      ${sessionLine}
+      ${comp}
       <p>${game.desc}</p>
       <div class="game-card-footer">
-        <a href="${game.url}" class="game-play-btn" onclick="trackPlay('${game.id}')">&#9654; Play</a>
+        <a href="${game.url}" class="game-play-btn" onclick="trackPlay('${game.id}')">&#9654; Run it</a>
         <div style="display:flex;align-items:center;gap:.5rem">
           <button class="game-like-btn${isLiked ? ' liked' : ''}" onclick="handleLike('${game.id}',this)" title="${isLiked ? 'Unlike' : 'Like'}">&#9829;</button>
           <span class="game-status live">&#9679; Live</span>
@@ -399,6 +777,11 @@ async function handleLike(gameId, btn) {
 
 // ─── RENDER SECTIONS ───
 function renderSections() {
+  renderHeroGames();
+  renderComingSoonRow();
+  syncRetentionStrip();
+  fetchAndRenderHomeLb();
+
   const liked = getLiked();
   const recent = getRecent();
 
@@ -434,29 +817,7 @@ function renderSections() {
     }
   }
 
-  const allEl = document.getElementById('all-games-grid');
-  if (allEl) {
-    const liveGames = Object.values(GAMES_DB).filter(g => g.live);
-    allEl.innerHTML = liveGames.map(g => renderGameCard(g)).join('') + `
-      <div class="game-card coming-soon">
-        <div class="game-card-placeholder">&#128302;</div>
-        <div class="game-card-body">
-          <h3>???</h3>
-          <div class="game-card-tags"><span class="game-tag">TBA</span></div>
-          <p>New game in the works.</p>
-          <div class="game-card-footer"><span class="game-status">Coming soon</span></div>
-        </div>
-      </div>
-      <div class="game-card coming-soon">
-        <div class="game-card-placeholder">&#127918;</div>
-        <div class="game-card-body">
-          <h3>???</h3>
-          <div class="game-card-tags"><span class="game-tag">TBA</span></div>
-          <p>More on the way.</p>
-          <div class="game-card-footer"><span class="game-status">Planned</span></div>
-        </div>
-      </div>`;
-  }
+  renderAllGamesGrid();
 }
 
 // Contact page (FormSubmit): guarantee POST — some caches/CDNs serve stale markup without method.
@@ -466,3 +827,11 @@ function renderSections() {
   form.method = 'post';
   form.setAttribute('method', 'POST');
 })();
+
+// First paint: nav + hub (don’t wait for auth round-trip).
+if (document.getElementById('nav-account-area')) {
+  renderNavAccount();
+}
+if (document.getElementById('hero-games-slot') || document.getElementById('all-games-grid')) {
+  renderSections();
+}

@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Nikolympia Games</title>
-  <meta name="description" content="Free browser games — no downloads, no installs. Play instantly.">
-  <meta name="keywords" content="free games, browser games, online games, html5 games, nikolympia">
-  <meta property="og:title" content="Nikolympia Games">
-  <meta property="og:description" content="Free browser games. No downloads. Just play.">
-  <meta property="og:image" content="void_survivors_cover.png">
+  <title>Nikolympia Games — Global leaderboards, instant browser games</title>
+  <meta name="description" content="Climb live leaderboards — roguelike survival, idle ascension, endless climb. No install. Beat #1 from your browser.">
+  <meta name="keywords" content="free games, browser games, online games, html5 games, nikolympia, idle games, roguelike">
+  <meta property="og:title" content="Nikolympia Games — Play free in your browser">
+  <meta property="og:description" content="Instant games: survival roguelike, idle clicker, endless platformer. Global leaderboards. No install.">
+  <meta property="og:image" content="https://nikolympiagames.com/void_survivors_cover.png">
+  <meta property="og:url" content="https://nikolympiagames.com/">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -19,6 +21,8 @@
       <button class="nav-toggle" aria-label="Menu" onclick="document.querySelector('.nav-links').classList.toggle('open')">&#9776;</button>
       <ul class="nav-links">
         <li><a href="index.html" class="active">Home</a></li>
+        <li><a href="#games">Games</a></li>
+        <li><a href="#scores">Scores</a></li>
         <li><a href="about.html">About</a></li>
         <li><a href="contact.html">Contact</a></li>
       </ul>
@@ -26,15 +30,47 @@
     </div>
   </nav>
 
-  <section class="hero">
-    <h1><span>NIKOLYMPIA</span> GAMES</h1>
-    <p class="tagline">Free browser games — pick one and play</p>
+  <section class="hero-v2">
+    <div class="hero-v2-inner">
+      <div class="hero-v2-copy">
+        <p class="hero-eyebrow">Global boards · Instant play · No install</p>
+        <h1 class="hero-headline">Climb the board.<span class="hero-accent"> Steal #1.</span> One more run.</h1>
+        <p class="hero-sub">Three games, real-time leaderboards, zero download — someone’s name is on top. Make it yours.</p>
+        <p class="hero-live-teaser" id="hero-live-teaser" hidden aria-live="polite"></p>
+        <ul class="hero-trust" aria-label="Highlights">
+          <li>Real players, real ranks</li>
+          <li>Fast runs — instant retry</li>
+          <li>Optional account — your name on the board</li>
+        </ul>
+        <div class="hero-ctas">
+          <a href="#games" class="btn btn-hero-primary" id="hero-play-main">▶ Jump in</a>
+          <a href="#scores" class="btn btn-hero-secondary">Beat #1 →</a>
+        </div>
+      </div>
+      <aside class="hero-games" id="hero-games-slot" aria-label="Play any game"></aside>
+    </div>
   </section>
 
-  <div id="recent-section" class="section" style="display:none">
+  <section class="home-lb-section" id="scores">
+    <div class="section-inner">
+      <div class="section-header home-lb-section-header">
+        <div class="home-lb-header-left">
+          <h2 class="section-title">Global top runs</h2>
+          <span class="live-pulse-badge" title="Leaderboard data from Firebase"><span class="live-dot" aria-hidden="true"></span> Live</span>
+        </div>
+        <span class="home-lb-updated" id="home-lb-updated" aria-live="polite"></span>
+      </div>
+      <p class="home-lb-deck">Top score on each game right now — close the gap and take the crown.</p>
+      <div id="home-lb-root" class="home-lb-grid">
+        <div class="home-lb-loading">Loading scores…</div>
+      </div>
+    </div>
+  </section>
+
+  <div id="recent-section" class="section section-recent" style="display:none">
     <div class="section-inner">
       <div class="section-header">
-        <h2 class="section-title">&#128338; Recently Played</h2>
+        <h2 class="section-title">&#128338; Resume</h2>
       </div>
       <div class="game-row"></div>
     </div>
@@ -43,20 +79,39 @@
   <div id="liked-section" class="section" style="display:none">
     <div class="section-inner">
       <div class="section-header">
-        <h2 class="section-title">&#9829; Liked Games</h2>
+        <h2 class="section-title">&#9829; Your likes</h2>
       </div>
       <div class="game-row"></div>
     </div>
   </div>
 
-  <div class="section">
+  <section id="retention-strip" class="retention-strip">
+    <div class="section-inner retention-inner">
+      <div class="retention-copy">
+        <strong>Free account</strong>
+        <span>Sync hearts across devices, keep play history, and use your name on leaderboards. Games stay free.</span>
+      </div>
+      <button type="button" class="btn-retention" onclick="openAuthModal()">Sign in — optional</button>
+    </div>
+  </section>
+
+  <section id="games" class="section section-games">
     <div class="section-inner">
       <div class="section-header">
-        <h2 class="section-title">All Games</h2>
+        <h2 class="section-title">All games</h2>
+        <a href="#scores" class="section-link">See scores ↑</a>
       </div>
       <div class="games-grid" id="all-games-grid"></div>
     </div>
-  </div>
+  </section>
+
+  <section class="section section-coming" aria-label="Coming soon">
+    <div class="section-inner">
+      <h2 class="section-title section-title-sub">Coming soon</h2>
+      <p class="coming-lead">Next drops brewing — check back or sign in so you don’t miss a launch.</p>
+      <div class="coming-soon-row" id="coming-soon-inner"></div>
+    </div>
+  </section>
 
   <div id="auth-modal" class="modal-overlay">
     <div class="modal"></div>
@@ -66,14 +121,14 @@
     <div class="footer-inner">
       <div class="footer-brand">
         <span class="nav-logo">NIKOLYMPIA</span>
-        <p>Free browser games. More coming soon.</p>
+        <p>Free browser games. No installs — we don’t sell your saves.</p>
       </div>
       <div class="footer-col">
-        <h4>Pages</h4>
+        <h4>Play</h4>
         <ul>
-          <li><a href="index.html">Home</a></li>
-          <li><a href="about.html">About</a></li>
-          <li><a href="contact.html">Contact</a></li>
+          <li><a href="#games">All games</a></li>
+          <li><a href="#scores">Leaderboards</a></li>
+          <li><a href="contact.html">Feedback</a></li>
         </ul>
       </div>
       <div class="footer-col">
