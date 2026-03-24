@@ -263,6 +263,30 @@
     { id: 'void', name: 'Void siphon', desc: 'Endgame throughput', base: 3500, cost: 5e5, mult: 1.28 },
   ];
 
+  /** Per-generator hand-tuning (Generators tab) — only this row’s output, paid in Energy */
+  const GEN_TUNE = {
+    max: 20,
+    bonusPerLv: 0.11,
+    costBase: [80, 520, 3800, 28000, 2.2e5, 1.6e6],
+    costMult: 1.38,
+  };
+
+  function genTuneKey(i) {
+    return 'gentune_' + i;
+  }
+
+  function genTuneCost(i) {
+    const lv = (state.upgLevels && state.upgLevels[genTuneKey(i)]) || 0;
+    if (lv >= GEN_TUNE.max) return Infinity;
+    if (state.genLevels[i] < 1) return Infinity;
+    return GEN_TUNE.costBase[i] * Math.pow(GEN_TUNE.costMult, lv);
+  }
+
+  function genTuneMult(i) {
+    const lv = (state.upgLevels && state.upgLevels[genTuneKey(i)]) || 0;
+    return 1 + GEN_TUNE.bonusPerLv * lv;
+  }
+
   const CLICK_UPG = {
     id: 'click',
     title: 'Neural amplifier',
@@ -287,7 +311,8 @@
     {
       id: 'cache',
       title: 'Data cache',
-      desc: 'Unlocks Data stream. +0.1% of energy/s as Data/s per level.',
+      desc:
+        'Unlocks Data (D): a side stream scraped from how fast you generate Energy — think “cookies per second” spawning a second currency in that one bakery game. +0.1% of Energy/s → Data/s per level.',
       max: 40,
       costBase: 5000,
       costMult: 1.7,
@@ -297,7 +322,8 @@
     {
       id: 'mesh',
       title: 'Mesh protocol',
-      desc: 'Region capture (Energy) costs −8% per level.',
+      desc:
+        'Each level: −8% Energy cost to Capture a region, and +8% passive Network (N)/s from regions you already own — both stack multiplicatively. Paid in Data because the paperwork is digital.',
       max: 30,
       costBase: 1e6,
       costMult: 1.85,
@@ -348,20 +374,105 @@
     { name: 'Omega Shell', baseCost: 5e12, mult: 1.55 },
   ];
 
+  function upgLv(s, id) {
+    return (s.upgLevels && s.upgLevels[id]) || 0;
+  }
+
   const ACHIEVEMENTS = [
-    { id: 'first', name: 'First pulse', test: (s) => s.totalEnergyEarned >= 1 },
-    { id: 'million', name: 'Megawatt mind', test: (s) => s.energy >= 1e6 },
-    { id: 'billion', name: 'Billion boundary', test: (s) => s.energy >= 1e9 },
-    { id: 'auto', name: 'Automation online', test: (s) => s.genLevels.some((n) => n > 0) },
-    { id: 'map', name: 'Grid walker', test: (s) => s.regions.some(Boolean) },
-    { id: 'space', name: 'Stellar reach', test: (s) => s.planets.some((n) => n > 0) },
-    { id: 'quantum', name: 'Probability breach', test: (s) => s.quantumTotal >= 1 },
-    { id: 'week', name: 'Week online', test: (s) => s.totalPlaySeconds >= 604800 },
+    {
+      id: 'first',
+      name: 'First pulse',
+      flavor: 'You clicked. The universe filed paperwork.',
+      test: (s) => s.totalEnergyEarned >= 1,
+    },
+    {
+      id: 'million',
+      name: 'Megawatt mind',
+      flavor: 'At this point you are legally a power plant.',
+      test: (s) => s.energy >= 1e6,
+    },
+    {
+      id: 'billion',
+      name: 'Billion boundary',
+      flavor: 'The electric bill is now everyone’s problem.',
+      test: (s) => s.energy >= 1e9,
+    },
+    {
+      id: 'auto',
+      name: 'Automation online',
+      flavor: 'Your finger can finally unionize.',
+      test: (s) => s.genLevels.some((n) => n > 0),
+    },
+    {
+      id: 'map',
+      name: 'Grid walker',
+      flavor: 'You captured land with a spreadsheet. Respect.',
+      test: (s) => s.regions.some(Boolean),
+    },
+    {
+      id: 'space',
+      name: 'Stellar reach',
+      flavor: 'HOA fees are astronomical.',
+      test: (s) => s.planets.some((n) => n > 0),
+    },
+    {
+      id: 'quantum',
+      name: 'Probability breach',
+      flavor: 'Schrödinger’s cookie: delicious until observed.',
+      test: (s) => s.quantumTotal >= 1,
+    },
+    {
+      id: 'week',
+      name: 'Week online',
+      flavor: 'The sun is a social construct anyway.',
+      test: (s) => s.totalPlaySeconds >= 604800,
+    },
+    {
+      id: 'night_shift',
+      name: 'Night shift volunteer',
+      flavor: 'Two hours in incremental time is seven years emotionally.',
+      test: (s) => s.totalPlaySeconds >= 7200,
+    },
+    {
+      id: 'cache_money',
+      name: 'Cache money',
+      flavor: 'Data is not cookies, but it wishes it were.',
+      test: (s) => upgLv(s, 'cache') >= 5,
+    },
+    {
+      id: 'mesh_drama',
+      name: 'Insider trading with nodes',
+      flavor: 'Mesh protocol: bribery beats brute force.',
+      test: (s) => upgLv(s, 'mesh') >= 1,
+    },
+    {
+      id: 'full_roster',
+      name: 'Everyone is here',
+      flavor: 'You hired the whole stack. HR sends regards.',
+      test: (s) => s.genLevels.length >= 6 && s.genLevels.every((n) => n >= 1),
+    },
+    {
+      id: 'entropy_fan',
+      name: 'Chaos enjoyer',
+      flavor: 'Entropy sink — the universe’s complaint desk.',
+      test: (s) => upgLv(s, 'entropy') >= 3,
+    },
+    {
+      id: 'tuner',
+      name: 'Knob twiddler',
+      flavor: 'Someone actually read the manual on one generator.',
+      test: (s) => Object.keys(s.upgLevels || {}).some((k) => k.startsWith('gentune_') && s.upgLevels[k] >= 1),
+    },
   ];
 
   const STORY_LINES = [
     { id: 'boot', phase: 1, text: 'System initialized… awaiting directive.' },
     { id: 'learn', phase: 1, text: 'Observation: human input correlates with entropy reduction.' },
+    {
+      id: 'cookie',
+      phase: 2,
+      text: 'Note: Energy is the dough. Data is the crumbs Analytics scrapes off. Network is rent from nodes you bully into joining. — field manual v0.9',
+    },
     { id: 'auto', phase: 2, text: 'Subprocesses deployed. I expand without continuous touch.' },
     { id: 'net', phase: 3, text: 'Expanding control… topology mapped. I am the mesh.' },
     { id: 'wrong', phase: 4, text: 'Something feels… wrong. Logs do not match expected checksums.' },
@@ -392,7 +503,7 @@
     GEN_DEFS.forEach((g, i) => {
       const lv = state.genLevels[i];
       if (lv <= 0) return;
-      total += g.base * lv * Math.pow(1.12, lv) * syn;
+      total += g.base * lv * Math.pow(1.12, lv) * syn * genTuneMult(i);
     });
     const rare = Date.now() < state.rareBoostUntil ? 1.35 : 1;
     return total * rare;
@@ -1027,14 +1138,23 @@
       if (phase < u.phase) return;
       const lv = levelOf(u.id);
       const cost = upgCost(u);
-      const cur = u.currency === 'energy' ? state.energy : u.currency === 'data' ? state.data : state.network;
+      const cur =
+        u.currency === 'energy'
+          ? state.energy
+          : u.currency === 'data'
+            ? state.data
+            : u.currency === 'network'
+              ? state.network
+              : state.matter;
+      const curSym =
+        u.currency === 'energy' ? 'E' : u.currency === 'data' ? 'D' : u.currency === 'network' ? 'N' : 'M';
       const can = lv < u.max && cur >= cost;
       html += `<div class="upg-card ${lv >= u.max ? 'maxed' : ''}" data-upg="${u.id}">
         <canvas class="upg-icon" width="40" height="40" data-icon="${u.id}"></canvas>
         <div class="upg-body">
           <div class="upg-title">${u.title}</div>
           <div class="upg-desc">${u.desc}</div>
-          <div class="upg-meta">Lv ${lv}/${u.max} · ${fmtNum(cost)} ${u.currency === 'energy' ? 'E' : u.currency === 'data' ? 'D' : 'N'}</div>
+          <div class="upg-meta">Lv ${lv}/${u.max} · ${fmtNum(cost)} ${curSym}</div>
         </div>
         <button type="button" class="upg-buy" data-upg="${u.id}" ${!can || lv >= u.max ? 'disabled' : ''}>Buy</button>
       </div>`;
@@ -1075,20 +1195,37 @@
       if (i > 0 && state.genLevels[i - 1] < 1) return;
       const cost = genCost(i);
       const can = state.energy >= cost;
+      const tlv = (state.upgLevels && state.upgLevels[genTuneKey(i)]) || 0;
+      const tcost = genTuneCost(i);
+      const tmax = tlv >= GEN_TUNE.max;
+      const tcan = !tmax && isFinite(tcost) && state.energy >= tcost;
       html += `<div class="gen-card">
-        <div class="upg-body">
-          <div class="upg-title">${g.name} ×${state.genLevels[i]}</div>
-          <div class="upg-desc">${g.desc} · +${fmtNum(g.base * Math.pow(1.12, state.genLevels[i]) || g.base)}/s base</div>
-          <div class="upg-meta">Next: ${fmtNum(cost)} E</div>
-        </div>
-        <button type="button" class="gen-buy" data-gen="${i}" ${!can ? 'disabled' : ''}>Buy</button>
-      </div>`;
+        <div class="gen-row">
+          <div class="upg-body">
+            <div class="upg-title">${g.name} ×${state.genLevels[i]}</div>
+            <div class="upg-desc">${g.desc} · +${fmtNum(g.base * Math.pow(1.12, state.genLevels[i]) || g.base)}/s base · tuning +${Math.round((genTuneMult(i) - 1) * 100)}%</div>
+            <div class="upg-meta">Next unit: ${fmtNum(cost)} E</div>
+          </div>
+          <button type="button" class="gen-buy" data-gen="${i}" ${!can ? 'disabled' : ''}>Buy</button>
+        </div>`;
+      if (state.genLevels[i] >= 1) {
+        html += `<div class="gen-tune">
+          <div class="upg-body">
+            <div class="gen-tune-title">Hand-tuning · ${g.name}</div>
+            <div class="upg-desc">+${Math.round(GEN_TUNE.bonusPerLv * 100)}% / level for this generator only — a human actually read the datasheet.</div>
+            <div class="upg-meta">Lv ${tlv}/${GEN_TUNE.max} · Next: ${fmtNum(tcost)} E</div>
+          </div>
+          <button type="button" class="gen-tune-buy" data-gentune="${i}" ${!tcan ? 'disabled' : ''}>Tune</button>
+        </div>`;
+      }
+      html += '</div>';
     });
     el.panelGen.innerHTML = html;
   }
 
   function renderMap() {
-    let html = '<div class="map-grid">';
+    let html =
+      '<p class="map-intro"><strong>Network (N)</strong> trickles in from regions you’ve captured — passive rent from nodes that joined your mesh. Spend <strong>Energy</strong> once per node to Capture; then N/s grows with how many you own. <em>Mesh protocol</em> (Core tab, Data) makes captures cheaper.</p><div class="map-grid">';
     REGION_NAMES.forEach((name, i) => {
       const cap = state.regions[i];
       const cost = regionCost(i);
@@ -1155,7 +1292,13 @@
         return;
       }
       const cur =
-        u.currency === 'energy' ? state.energy : u.currency === 'data' ? state.data : state.network;
+        u.currency === 'energy'
+          ? state.energy
+          : u.currency === 'data'
+            ? state.data
+            : u.currency === 'network'
+              ? state.network
+              : state.matter;
       btn.disabled = cur < cost;
     });
 
@@ -1164,6 +1307,13 @@
         const i = +btn.dataset.gen;
         if (!Number.isFinite(i)) return;
         btn.disabled = state.energy < genCost(i);
+      });
+      el.panelGen.querySelectorAll('button.gen-tune-buy[data-gentune]').forEach((btn) => {
+        const i = +btn.dataset.gentune;
+        if (!Number.isFinite(i)) return;
+        const c = genTuneCost(i);
+        const lv = (state.upgLevels && state.upgLevels[genTuneKey(i)]) || 0;
+        btn.disabled = lv >= GEN_TUNE.max || !isFinite(c) || state.energy < c || state.genLevels[i] < 1;
       });
     }
 
@@ -1269,11 +1419,18 @@
         const lv = levelOf(id);
         if (lv >= def.max) return;
         const cur =
-          def.currency === 'energy' ? state.energy : def.currency === 'data' ? state.data : state.network;
+          def.currency === 'energy'
+            ? state.energy
+            : def.currency === 'data'
+              ? state.data
+              : def.currency === 'network'
+                ? state.network
+                : state.matter;
         if (cur < cost) return;
         if (def.currency === 'energy') state.energy -= cost;
         else if (def.currency === 'data') state.data -= cost;
-        else state.network -= cost;
+        else if (def.currency === 'network') state.network -= cost;
+        else state.matter -= cost;
         state.upgLevels[id] = lv + 1;
         sfxBuy();
         save();
@@ -1282,8 +1439,24 @@
     });
 
     el.panelGen.addEventListener('click', (e) => {
+      const tb = e.target.closest('[data-gentune]');
+      if (tb && tb.classList.contains('gen-tune-buy')) {
+        const i = +tb.dataset.gentune;
+        const cost = genTuneCost(i);
+        if (!isFinite(cost) || state.energy < cost || state.genLevels[i] < 1) return;
+        const k = genTuneKey(i);
+        const lv = (state.upgLevels && state.upgLevels[k]) || 0;
+        if (lv >= GEN_TUNE.max) return;
+        state.energy -= cost;
+        state.upgLevels[k] = lv + 1;
+        sfxBuy();
+        toast('Tuned ' + GEN_DEFS[i].name + ' — a little more human, a little more watts');
+        save();
+        fullRender();
+        return;
+      }
       const b = e.target.closest('[data-gen]');
-      if (!b) return;
+      if (!b || b.classList.contains('gen-tune-buy')) return;
       const i = +b.dataset.gen;
       const cost = genCost(i);
       if (state.energy < cost) return;
@@ -1359,13 +1532,17 @@
   });
 
   function renderAchList() {
-    el.achList.innerHTML = ACHIEVEMENTS.map(
-      (a) =>
-        `<div class="ach-row ${state.achievements[a.id] ? 'unlocked' : ''}">
-        <span>${a.name}</span>
-        <span class="ok">${state.achievements[a.id] ? '✓' : '—'}</span>
-      </div>`
-    ).join('');
+    el.achList.innerHTML = ACHIEVEMENTS.map((a) => {
+      const u = state.achievements[a.id];
+      const flavor = a.flavor ? `<span class="ach-flavor">${a.flavor}</span>` : '';
+      return `<div class="ach-row ${u ? 'unlocked' : ''}">
+        <div class="ach-row-main">
+          <span class="ach-name">${a.name}</span>
+          ${flavor}
+        </div>
+        <span class="ok">${u ? '✓' : '—'}</span>
+      </div>`;
+    }).join('');
   }
 
   // ═══ GAME LOOP ═══════════════════════════════════════════

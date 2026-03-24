@@ -350,6 +350,44 @@ html, body {
   font-weight: 700;
 }
 
+.asc-field-manual {
+  margin-top: 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0;
+  font-size: 0.78rem;
+  color: rgba(200, 220, 255, 0.78);
+}
+
+.asc-field-manual summary {
+  cursor: pointer;
+  padding: 0.55rem 0.65rem;
+  font-weight: 700;
+  color: var(--cyan);
+  list-style: none;
+}
+
+.asc-field-manual summary::-webkit-details-marker {
+  display: none;
+}
+
+.asc-field-manual-body {
+  padding: 0 0.75rem 0.65rem;
+  border-top: 1px solid var(--line);
+}
+
+.asc-field-manual-body p {
+  margin: 0.45rem 0;
+  line-height: 1.45;
+}
+
+.asc-field-manual-note {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
 .asc-checklist {
   flex-shrink: 0;
   width: 100%;
@@ -689,6 +727,46 @@ html, body {
   border-color: var(--cyan-dim);
 }
 
+.gen-card {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.gen-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.gen-row .upg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.gen-tune {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(0, 255, 213, 0.12);
+}
+
+.gen-tune-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--violet);
+}
+
+.gen-tune .upg-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .upg-card.maxed {
   opacity: 0.5;
   pointer-events: none;
@@ -727,7 +805,7 @@ html, body {
   margin-top: 0.2rem;
 }
 
-.upg-buy, .gen-buy, .map-capture, .planet-buy, .q-btn {
+.upg-buy, .gen-buy, .gen-tune-buy, .map-capture, .planet-buy, .q-btn {
   padding: 0.45rem 0.75rem;
   font-size: 0.65rem;
   font-weight: 800;
@@ -742,13 +820,28 @@ html, body {
   transition: all 0.15s;
 }
 
-.upg-buy:disabled, .gen-buy:disabled, .map-capture:disabled, .planet-buy:disabled, .q-btn:disabled {
+.upg-buy:disabled, .gen-buy:disabled, .gen-tune-buy:disabled, .map-capture:disabled, .planet-buy:disabled, .q-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.upg-buy:not(:disabled):active, .gen-buy:not(:disabled):active {
+.upg-buy:not(:disabled):active, .gen-buy:not(:disabled):active, .gen-tune-buy:not(:disabled):active {
   transform: scale(0.97);
+}
+
+.map-intro {
+  font-size: 0.62rem;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 255, 213, 0.12);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.map-intro strong {
+  color: var(--cyan);
 }
 
 .map-grid {
@@ -911,7 +1004,23 @@ html, body {
   font-size: 0.75rem;
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 0.5rem;
+}
+
+.ach-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.ach-flavor {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  font-style: italic;
+  line-height: 1.35;
 }
 
 .ach-row.unlocked {
