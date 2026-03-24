@@ -356,8 +356,9 @@
 
   function spawnLayer(prevBottomY, initial) {
     const d = difficulty();
+    /** Stay under normal-jump apex (~109px with JUMP_V) so every gap is reachable without boost */
     const gapMin = 48 + d * 34 + (initial ? 0 : 0);
-    const gapMax = 70 + d * 42;
+    const gapMax = 63 + d * 37;
     const gap = gapMin + Math.random() * (gapMax - gapMin);
     const platY = prevBottomY - gap;
     const count = 1 + (Math.random() < Math.min(0.82, 0.3 + d * 0.22) ? 1 : 0);
@@ -369,10 +370,7 @@
       do {
         x = 40 + Math.random() * (CW - 120);
         tries++;
-      } while (
-        tries < 30 &&
-        taken.some((tx) => Math.abs(tx - x) < 100)
-      );
+      } while (tries < 30 && taken.some((tx) => Math.abs(tx - x) < 100));
       taken.push(x);
 
       const w = 72 + Math.random() * 68;
@@ -383,14 +381,13 @@
       else if (roll < 0.28 + d * 0.05) type = 'boost';
       else if (roll < 0.33 + d * 0.04) type = 'tele';
 
-      const baseX = x;
       addPlat({
         x,
         y: platY,
         w,
         h: 16,
         type,
-        baseX,
+        baseX: x,
         phase: Math.random() * 6.28,
         broken: false,
         breakT: 0,
