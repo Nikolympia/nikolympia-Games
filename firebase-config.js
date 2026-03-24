@@ -30,7 +30,9 @@ var db = null;
 
 try {
   if (typeof firebase !== 'undefined' && firebase.initializeApp) {
-    firebase.initializeApp(firebaseConfig);
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
     auth = firebase.auth();
     db = firebase.firestore();
     window.__NK_FB_DB = db;

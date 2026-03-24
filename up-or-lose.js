@@ -9,7 +9,10 @@
   const CH = 720;
   const SAVE_KEY = 'up_or_lose_v1';
   const FS_COLLECTION = 'up_or_lose_leaderboard';
+  /** Shown in menu table after merging best run per player */
   const LB_LIMIT = 20;
+  /** Pull enough raw rows from Firestore so worldwide merge still finds true top players */
+  const LB_FETCH_CAP = 300;
 
   const fsDb = () => (typeof window !== 'undefined' ? window.__NK_FB_DB : null);
   function hasFirestoreLB() {
@@ -29,9 +32,9 @@
   const PW = 30;
   const PH = 36;
   const GRAVITY = 2650;
-  /** Apex ≈ v²/(2g) — tuned so normal gaps are reachable */
-  const JUMP_V = -805;
-  const BOOST_V = -1090;
+  /** Apex ≈ v²/(2g) — slightly toned down vs peak; gaps scaled to match */
+  const JUMP_V = -762;
+  const BOOST_V = -1035;
   const POISON_START_OFFSET = 420;
   const POISON_RISE_BASE = 34;
   const POISON_RISE_PER_D = 52;
@@ -43,6 +46,45 @@
 
   let globalLB = [];
   let globalLBFetched = false;
+  let globalLBError = '';
+
+  function normalizeScore(v) {
+    if (v == null) return 0;
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    return Number.isFinite(n) ? Math.floor(n) : 0;
+  }
+
+  function normalizeSeconds(v) {
+    if (v == null) return 0;
+    const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+    return Number.isFinite(n) ? Math.floor(n) : 0;
+  }
+
+  /** One entry per display name (best height only) — fair worldwide podium */
+  function mergeBestPerPlayer(rows) {
+    const best = new Map();
+    for (const r of rows) {
+      const key = (r.name || 'Player').trim().toLowerCase() || 'player';
+      const cur = best.get(key);
+      if (!cur || r.score > cur.score) best.set(key, r);
+    }
+    return Array.from(best.values()).sort((a, b) => b.score - a.score);
+  }
+
+  function mapDocToRow(d) {
+    const x = d.data();
+    let dateStr = '';
+    try {
+      if (x.createdAt && x.createdAt.toDate) dateStr = x.createdAt.toDate().toLocaleString();
+    } catch (_) {}
+    return {
+      name: String(x.name || 'Player').slice(0, 24),
+      score: normalizeScore(x.score),
+      time: normalizeSeconds(x.seconds),
+      text: String(x.text || '').slice(0, 40),
+      date: dateStr,
+    };
+  }
 
   function loadSave() {
     try {
@@ -84,29 +126,33 @@
   }
 
   async function fetchGlobalLB() {
+    globalLBError = '';
     if (hasFirestoreLB()) {
+      const col = fsDb().collection(FS_COLLECTION).orderBy('score', 'desc').limit(LB_FETCH_CAP);
+      let snap = null;
       try {
-        const snap = await fsDb().collection(FS_COLLECTION).orderBy('score', 'desc').limit(LB_LIMIT).get();
+        snap = await col.get({ source: 'server' });
+      } catch (e1) {
+        try {
+          snap = await col.get();
+        } catch (e2) {
+          console.warn('[UpOrLose] Firestore leaderboard fetch failed:', e2);
+          globalLBFetched = true;
+          globalLB = [];
+          globalLBError = String(e2.message || e2 || 'fetch failed');
+          return globalLB;
+        }
+      }
+      try {
+        const rows = snap.docs.map(mapDocToRow);
         globalLBFetched = true;
-        globalLB = snap.docs.map((d) => {
-          const x = d.data();
-          let dateStr = '';
-          try {
-            if (x.createdAt && x.createdAt.toDate) dateStr = x.createdAt.toDate().toLocaleString();
-          } catch (_) {}
-          return {
-            name: String(x.name || 'Player').slice(0, 24),
-            score: parseInt(x.score, 10) || 0,
-            time: parseInt(x.seconds, 10) || 0,
-            text: String(x.text || '').slice(0, 40),
-            date: dateStr,
-          };
-        });
+        globalLB = mergeBestPerPlayer(rows).slice(0, LB_LIMIT);
         return globalLB;
       } catch (e) {
-        console.warn('[UpOrLose] Firestore leaderboard fetch failed:', e);
+        console.warn('[UpOrLose] Leaderboard parse failed:', e);
         globalLBFetched = true;
         globalLB = [];
+        globalLBError = String(e.message || e || 'parse failed');
         return globalLB;
       }
     }
@@ -310,8 +356,8 @@
 
   function spawnLayer(prevBottomY, initial) {
     const d = difficulty();
-    const gapMin = 50 + d * 36 + (initial ? 0 : 0);
-    const gapMax = 74 + d * 44;
+    const gapMin = 48 + d * 34 + (initial ? 0 : 0);
+    const gapMax = 70 + d * 42;
     const gap = gapMin + Math.random() * (gapMax - gapMin);
     const platY = prevBottomY - gap;
     const count = 1 + (Math.random() < Math.min(0.82, 0.3 + d * 0.22) ? 1 : 0);
@@ -404,7 +450,10 @@
             if (runTime - lastTeleportAt > 0.8) {
               lastTeleportAt = runTime;
               const opts = platforms.filter(
-                (q) => q !== p && !q.broken && Math.abs(q.y - p.y) < CH * 0.95
+                (q) =>
+                  q !== p &&
+                  !q.broken &&
+                  q.y < p.y - 6
               );
               if (opts.length) {
                 const t = opts[Math.floor(Math.random() * opts.length)];
@@ -733,8 +782,12 @@
       return;
     }
     if (!globalLB.length) {
-      el.innerHTML =
-        '<div class="uol-lb-off"><strong>Global leaderboard</strong><p>No scores yet — play a game to be #1!</p></div>';
+      const hint = globalLBError
+        ? '<p>Could not load scores from the server. Check your connection, ad blockers, and that Firestore rules allow reads on <code>up_or_lose_leaderboard</code>.</p><p class="uol-lb-err">' +
+          String(globalLBError).slice(0, 120) +
+          '</p>'
+        : '<p>No scores yet — play a game to be #1!</p>';
+      el.innerHTML = '<div class="uol-lb-off"><strong>Global leaderboard</strong>' + hint + '</div>';
       return;
     }
     let h =
@@ -843,4 +896,13 @@
   const sv = loadSave();
   document.getElementById('uol-name').value = sv.username;
   fetchGlobalLB().then(renderMenuLB);
+
+  window.addEventListener('pageshow', (ev) => {
+    if (ev.persisted && hasFirestoreLB()) fetchGlobalLB().then(renderMenuLB);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !hasFirestoreLB()) return;
+    const title = document.getElementById('uol-title');
+    if (title && !title.classList.contains('uol-hidden')) fetchGlobalLB().then(renderMenuLB);
+  });
 })();
