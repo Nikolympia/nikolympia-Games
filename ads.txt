@@ -1,0 +1,6 @@
+# ads.txt — Nikolympia Games (https://nikolympiagames.com/)
+# REQUIRED after AdSense gives you a publisher ID:
+# 1. AdSense → Sites → your domain → Download / copy the ads.txt snippet
+# 2. Paste the REAL line below (replace the example). One record per line.
+# Example format (DO NOT use this fake pub id):
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0

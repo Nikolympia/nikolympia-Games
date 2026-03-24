@@ -622,6 +622,37 @@ img{max-width:100%;display:block}
   font-size:.72rem;color:var(--text-faint);text-align:center;
 }
 
+/* ──── HOME: ADSENSE / TRUST CONTENT ──── */
+.home-site-note{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.home-site-note-lead{
+  font-size:.88rem;color:var(--text-dim);line-height:1.65;max-width:62ch;margin-bottom:1.25rem;
+}
+.home-site-note-lead a{color:var(--accent-bright)}
+.home-game-blurbs{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem;
+}
+.home-game-blurb{
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1rem 1.1rem;
+}
+.home-game-blurb h3{font-size:.95rem;font-weight:800;margin-bottom:.4rem}
+.home-game-blurb h3 a{color:#fff;text-decoration:none}
+.home-game-blurb h3 a:hover{color:var(--accent-bright)}
+.home-game-blurb p{font-size:.78rem;color:var(--text-dim);line-height:1.5;margin:0}
+
+.faq-section{background:var(--bg);border-top:1px solid var(--border)}
+.faq-intro{font-size:.85rem;color:var(--text-dim);margin:-.25rem 0 1.1rem;max-width:50ch}
+.faq-list{margin:0;padding:0}
+.faq-item{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg2);padding:.85rem 1rem;margin-bottom:.65rem;
+}
+.faq-item dt{font-size:.82rem;font-weight:800;color:var(--amber);margin-bottom:.35rem}
+.faq-item dd{font-size:.78rem;color:var(--text-dim);line-height:1.55;margin:0}
+.faq-item dd a{color:var(--accent-bright)}
+
+.page-body h3{font-size:1rem;font-weight:700;color:var(--text);margin:1.25rem 0 .35rem}
+
 /* ──── RESPONSIVE ──── */
 @media(max-width:768px){
   .nav-links{
