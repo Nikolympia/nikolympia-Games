@@ -295,8 +295,8 @@
   const CLICK_UPG = {
     id: 'click',
     title: 'Neural amplifier',
-    desc: '+40% click power per level.',
-    max: 80,
+    desc: '+40% click power per level. Stacks multiplicatively with Synaptic burst and the Core click upgrades (Motor cortex, Reflex bus, Core overclock).',
+    max: 100,
     costBase: 25,
     costMult: 1.55,
     currency: 'energy',
@@ -312,6 +312,16 @@
       costMult: 1.65,
       currency: 'energy',
       phase: 1,
+    },
+    {
+      id: 'cortex',
+      title: 'Motor cortex',
+      desc: '+11% manual click power per level (multiplies with Neural amplifier & Synaptic burst).',
+      max: 45,
+      costBase: 650,
+      costMult: 1.56,
+      currency: 'energy',
+      phase: 2,
     },
     {
       id: 'cache',
@@ -369,6 +379,16 @@
       phase: 3,
     },
     {
+      id: 'reflex',
+      title: 'Reflex bus',
+      desc: '+8% manual click power per level. Low-latency routing from finger → core — paid in Data.',
+      max: 40,
+      costBase: 180,
+      costMult: 1.54,
+      currency: 'data',
+      phase: 3,
+    },
+    {
       id: 'entropy',
       title: 'Entropy sink',
       desc: 'Generators +25% per level.',
@@ -376,6 +396,27 @@
       costBase: 1e12,
       costMult: 2,
       currency: 'energy',
+      phase: 4,
+    },
+    {
+      id: 'overclock',
+      title: 'Core overclock',
+      desc: '+7% manual click power per level. Pushes the tap engine past rated spec — expensive Energy sink for late scaling.',
+      max: 50,
+      costBase: 8e9,
+      costMult: 1.82,
+      currency: 'energy',
+      phase: 4,
+    },
+    {
+      id: 'mesh_auto',
+      title: 'Autonomous mesh',
+      desc:
+        'Level 1: Mesh ping fires automatically when off cooldown (same burst & cooldown as the button — Packet surge still applies). Further levels: +3% mesh ping burst size each. Paid in Network (N).',
+      max: 15,
+      costBase: 120000,
+      costMult: 1.72,
+      currency: 'network',
       phase: 4,
     },
     {
@@ -593,7 +634,9 @@
     if (n < 1) return 0;
     const eps = genProduction();
     const amp = 1 + 0.11 * levelOf('netpulse');
-    return (14 + n * 32 + Math.pow(Math.max(0, eps) + 12, 0.52) * 5) * amp;
+    const autoLv = levelOf('mesh_auto');
+    const autoAmp = autoLv >= 1 ? 1 + 0.03 * autoLv : 1;
+    return (14 + n * 32 + Math.pow(Math.max(0, eps) + 12, 0.52) * 5) * amp * autoAmp;
   }
 
   function collectNetworkDrip() {
@@ -608,20 +651,23 @@
     state.network += Math.max(0.2, drip);
   }
 
-  function doNetPulse() {
+  function doNetPulse(opts) {
+    opts = opts || {};
+    const silent = !!opts.silent;
     const n = state.regions.filter(Boolean).length;
-    if (n < 1) return;
+    if (n < 1) return false;
     const now = Date.now();
-    if (now < (state.netPulseReadyUntil || 0)) return;
+    if (now < (state.netPulseReadyUntil || 0)) return false;
     const gain = netPulseBurstSize();
     state.network += gain;
     state.netPulseReadyUntil = now + netPulseCooldownSec() * 1000;
     state.meshPulseCount = (state.meshPulseCount || 0) + 1;
-    sfxBuy();
-    toast('Mesh ping — +' + fmtNum(gain) + ' N');
-    save();
+    if (!silent) sfxBuy();
+    if (!silent) toast('Mesh ping — +' + fmtNum(gain) + ' N');
+    if (!silent) save();
     syncMapPulseUi();
     updateResNumbers(computePhase());
+    return true;
   }
 
   function syncMapPulseUi() {
@@ -639,11 +685,24 @@
     btn.disabled = !ready;
     const nextN = fmtNum(netPulseBurstSize());
     const cd = netPulseCooldownSec().toFixed(1);
+    const autoOn = levelOf('mesh_auto') >= 1 && computePhase() >= 4;
     if (!ready) {
       const left = Math.max(0, ((state.netPulseReadyUntil || 0) - now) / 1000);
-      meta.textContent = 'Ready in ' + left.toFixed(1) + 's · next +' + nextN + ' N';
+      meta.textContent =
+        'Ready in ' +
+        left.toFixed(1) +
+        's · next +' +
+        nextN +
+        ' N' +
+        (autoOn ? ' · autonomous mesh firing on cooldown' : '');
     } else {
-      meta.textContent = 'Active: +' + nextN + ' N · ' + cd + 's cooldown · buy Packet surge (Core) for more';
+      meta.textContent =
+        'Active: +' +
+        nextN +
+        ' N · ' +
+        cd +
+        's cooldown' +
+        (autoOn ? ' · auto-ping enabled (Autonomous mesh)' : ' · buy Packet surge (Core) for more');
     }
   }
 
@@ -668,7 +727,11 @@
     const lv = state.clickLevel;
     const base = 1 * Math.pow(1.4, lv) * state.clickMult;
     const syn = Math.pow(1.15, levelOf('synapse'));
-    return base * syn * (Date.now() < state.rareBoostUntil ? 1.25 : 1);
+    const cortex = 1 + 0.11 * levelOf('cortex');
+    const reflex = 1 + 0.08 * levelOf('reflex');
+    const overclock = 1 + 0.07 * levelOf('overclock');
+    const rare = Date.now() < state.rareBoostUntil ? 1.25 : 1;
+    return base * syn * cortex * reflex * overclock * rare;
   }
 
   function levelOf(id) {
@@ -763,9 +826,16 @@
     },
     {
       id: 'phase_6',
-      label: 'Reach Phase 6',
+      label:
+        'Reach Phase 6: from Phase 5, hit 1e21 Energy (1,000,000,000,000,000,000,000 E) — then Quantum opens. After that, Discharges & Quantum seed push you further.',
       show: (s, p) => p >= 5,
       done: (s, p) => p >= 6,
+    },
+    {
+      id: 'mesh_auto_once',
+      label: 'Optional: Autonomous mesh (Core, N) — auto mesh ping on cooldown from Phase 4',
+      show: (s, p) => p >= 4,
+      done: (s) => levelOf('mesh_auto') >= 1,
     },
     {
       id: 'quantum_discharge',
@@ -1232,7 +1302,10 @@
     }
     if (!state.planets[0]) return 'Use the Space tab to colonize a planet — that fuels Matter income.';
     if (phase < 6) {
-      return 'Phase 6: Quantum tab — buy Quantum seed, fill the meter, discharge once, or max out Energy.';
+      return (
+        'Phase 6: grow Energy to 1e21 (1,000,000,000,000,000,000,000) while you are in Phase 5 — that forces the final tier open and unlocks the Quantum tab. ' +
+        'Then the meter fills passively; Discharge at 100% for huge Energy + Quantum. Buy Quantum seed on Core to fill faster.'
+      );
     }
     return 'Maximize Quantum seeds, discharge often, and push every currency higher.';
   }
@@ -1384,11 +1457,11 @@
 
   function renderMap() {
     let html =
-      '<p class="map-intro"><strong>Network (N)</strong> comes from captured regions (passive N/s) <em>and</em> you can spam <strong>Mesh ping</strong> below for instant bursts — no waiting. Core upgrades: <em>Relay buffer</em> &amp; <em>Uplink</em> (Data), <em>Packet surge</em> (Energy) for faster pings + tiny N on every COLLECT tap.</p>' +
+      '<p class="map-intro"><strong>Network (N)</strong> comes from captured regions (passive N/s) <em>and</em> you can use <strong>Mesh ping</strong> below for instant bursts. Core upgrades: <em>Relay buffer</em> &amp; <em>Uplink</em> (Data), <em>Packet surge</em> (Energy). Phase 4+ <em>Autonomous mesh</em> (Core, paid in N) pings automatically on the same cooldown.</p>' +
       '<div class="map-pulse-card">' +
       '<div class="upg-body">' +
       '<div class="upg-title">Mesh ping</div>' +
-      '<div class="upg-desc">Active play: fire a handshake burst into the mesh. Cooldown is short — upgrade <em>Packet surge</em> on Core to go faster and hit harder.</div>' +
+      '<div class="upg-desc">Manual burst into the mesh (optional if you bought Autonomous mesh). Cooldown shortens with <em>Packet surge</em>; burst size grows with <em>Autonomous mesh</em> levels.</div>' +
       '<div class="upg-meta" id="map-pulse-meta">—</div>' +
       '</div>' +
       '<button type="button" class="map-pulse-btn" id="btn-map-pulse" disabled>Ping mesh</button>' +
@@ -1427,9 +1500,9 @@
 
   function renderQuantum() {
     el.panelQuantum.innerHTML = `
-      <p class="upg-desc">Discharge quantum potential for Quantum currency and a massive energy spike.</p>
+      <p class="upg-desc"><strong>How you reach Phase 6:</strong> from Phase 5, bank <strong>1e21 Energy</strong> — that unlocks this tab. The quantum meter then fills from your production (faster with <em>Quantum seed</em> on Core). Tap <strong>Discharge</strong> at 100% for a massive Energy spike and Quantum currency. (After you are in Phase 6, discharges and Quantum seed also keep your phase pegged.)</p>
       <div class="quantum-meter"><div class="quantum-fill" id="q-fill"></div></div>
-      <p class="upg-meta">Fill rate scales with production · Total discharges: ${state.quantumTotal}</p>
+      <p class="upg-meta">Fill rate scales with production (faster with Quantum seed) · Total discharges: ${state.quantumTotal}</p>
       <button type="button" class="q-btn" id="btn-discharge" ${state.quantumCharge < 100 ? 'disabled' : ''}>Discharge</button>
     `;
     document.getElementById('q-fill').style.width = state.quantumCharge + '%';
@@ -1602,6 +1675,9 @@
         else state.matter -= cost;
         state.upgLevels[id] = lv + 1;
         sfxBuy();
+        if (id === 'mesh_auto' && lv + 1 === 1) {
+          toast('Autonomous mesh online — pings fire on cooldown while you hold a region.');
+        }
         save();
         fullRender();
       }
@@ -1939,6 +2015,9 @@
       state.quantumCharge = Math.min(100, state.quantumCharge + quantumFillRate() * dt);
     }
     tryRareEvent();
+    if (levelOf('mesh_auto') >= 1 && phase >= 4) {
+      doNetPulse({ silent: true });
+    }
     updateResNumbers(phase);
     renderChecklist(phase);
     updatePurchaseButtonStates(phase);
