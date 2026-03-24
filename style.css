@@ -11,10 +11,16 @@ body {
 }
 
 #game-container { position: relative; width: 100vw; height: 100vh; }
-#game-canvas { display: block; width: 100%; height: 100%; }
+/* Keep canvas behind UI — some browsers promote canvas above siblings if z-index fights */
+#game-canvas {
+  display: block; width: 100%; height: 100%;
+  position: relative;
+  z-index: 0;
+  pointer-events: auto;
+}
 
 #back-to-hub {
-  position: absolute; top: 12px; left: 12px; z-index: 50;
+  position: absolute; top: max(12px, env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); z-index: 100;
   width: 40px; height: 40px; border-radius: 50%;
   background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.15);
   color: #fff; font-size: 1.2rem; text-decoration: none;
@@ -23,15 +29,47 @@ body {
 }
 #back-to-hub:hover { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.3); }
 
+.pause-toggle {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 44px; min-height: 44px; padding: 0 0.85rem;
+  border-radius: 10px;
+  font-size: 0.72rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
+  line-height: 1; cursor: pointer; pointer-events: auto;
+  color: #fff; background: rgba(0,0,0,.72); border: 1px solid rgba(0,255,204,.35);
+  box-shadow: 0 2px 14px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.06) inset;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: all .2s; font-family: inherit;
+}
+.pause-toggle .pause-glyph {
+  display: inline-block;
+  width: 0.55rem; height: 0.9rem;
+  background: linear-gradient(to right, #fff 0 35%, transparent 35% 65%, #fff 65% 100%);
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+.pause-toggle .pause-label { line-height: 1; }
+.pause-toggle:hover {
+  background: rgba(0,255,204,.18); border-color: #00ffcc;
+  box-shadow: 0 0 20px rgba(0,255,204,.25), 0 2px 14px rgba(0,0,0,.45);
+}
+.pause-toggle.hidden { display: none; }
+
 /* ── Overlays ── */
 .overlay {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
   background: rgba(5,5,16,0.88);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  z-index: 10;
+  z-index: 40;
   overflow-y: auto;
 }
+.overlay.pause-overlay { z-index: 55; }
 .overlay.hidden { display: none; }
 .overlay-content { text-align: center; max-width: 750px; padding: 2rem 1rem; width: 100%; }
 .gameover-content { max-width: 500px; }

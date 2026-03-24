@@ -1,4 +1,5 @@
 // From Firebase Console → Project settings → Your web app (Config)
+// Never throws: if SDK is blocked or init fails, hub + game still load (offline).
 
 const firebaseConfig = {
   apiKey: "AIzaSyB8al6E_vdGswtlt4u-2-_EUd_N4jvtd-A",
@@ -10,8 +11,36 @@ const firebaseConfig = {
   measurementId: "G-TLV9DC8KLL"
 };
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-// Used by game.js for the online leaderboard (HTTPS-safe)
-window.__NK_FB_DB = db;
+function nkStubAuth() {
+  return {
+    onAuthStateChanged(cb) {
+      queueMicrotask(() => { try { cb(null); } catch (e) { console.warn(e); } });
+      return function noop() {};
+    },
+    signInWithPopup: () => Promise.reject(Object.assign(new Error('offline'), { code: 'auth/unavailable' })),
+    signInWithEmailAndPassword: () => Promise.reject(Object.assign(new Error('offline'), { code: 'auth/unavailable' })),
+    createUserWithEmailAndPassword: () => Promise.reject(Object.assign(new Error('offline'), { code: 'auth/unavailable' })),
+    signOut: () => Promise.resolve(),
+    get currentUser() { return null; },
+  };
+}
+
+var auth = nkStubAuth();
+var db = null;
+
+try {
+  if (typeof firebase !== 'undefined' && firebase.initializeApp) {
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    window.__NK_FB_DB = db;
+  } else {
+    console.warn('[Nikolympia] Firebase SDK not loaded (network/adblock). Cloud features off.');
+    window.__NK_FB_DB = null;
+  }
+} catch (e) {
+  console.warn('[Nikolympia] Firebase init failed:', e);
+  auth = nkStubAuth();
+  db = null;
+  window.__NK_FB_DB = null;
+}

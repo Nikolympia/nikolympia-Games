@@ -203,6 +203,10 @@ function showAuthError(msg) {
 }
 
 async function googleSignIn() {
+  if (typeof firebase === 'undefined' || !firebase.auth?.GoogleAuthProvider) {
+    showAuthError('Sign-in needs Firebase scripts. Try disabling strict blocking for this site or another network.');
+    return;
+  }
   try {
     const provider = new firebase.auth.GoogleAuthProvider();
     await auth.signInWithPopup(provider);

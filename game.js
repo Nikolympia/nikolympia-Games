@@ -1161,17 +1161,24 @@ function showGameOverScreen(coins){
 // ──── UI SCREENS ────
 function showBanner(id,dur,text){
   const el=document.getElementById(id);
+  if(!el)return;
   if(text)el.textContent=text;
   el.classList.remove('hidden');
   setTimeout(()=>el.classList.add('hidden'),dur);
 }
 
 function showTitle(){
-  hideAll();
-  document.getElementById('title-coins').querySelector('span').textContent=getCoins();
-  const nameInput=document.getElementById('username-input');
-  nameInput.value=getUsername()==='Player'?'':getUsername();
-  document.getElementById('title-screen').classList.remove('hidden');
+  try{
+    hideAll();
+    const coinsEl=document.getElementById('title-coins')?.querySelector('span');
+    if(coinsEl)coinsEl.textContent=getCoins();
+    const nameInput=document.getElementById('username-input');
+    if(nameInput)nameInput.value=getUsername()==='Player'?'':getUsername();
+  }catch(e){
+    console.error('showTitle:',e);
+  }finally{
+    document.getElementById('title-screen')?.classList.remove('hidden');
+  }
 }
 
 function showCharSelect(){
@@ -1217,8 +1224,9 @@ function showShop(){
 }
 
 function hideAll(){
-  ['title-screen','char-screen','shop-screen','levelup-screen','gameover-screen','victory-screen','lb-screen','pause-screen'].forEach(id=>
-    document.getElementById(id).classList.add('hidden'));
+  ['title-screen','char-screen','shop-screen','levelup-screen','gameover-screen','victory-screen','lb-screen','pause-screen'].forEach(id=>{
+    document.getElementById(id)?.classList.add('hidden');
+  });
 }
 
 function syncPauseUi(){
@@ -1485,10 +1493,20 @@ function resize(){
 
 // ──── BOOT ────
 window.addEventListener('load',()=>{
-  canvas=document.getElementById('game-canvas');ctx=canvas.getContext('2d');
-  resize();window.addEventListener('resize',resize);setupInput();
-  initCloudSaveSync();
-  showTitle();
+  try{
+    canvas=document.getElementById('game-canvas');
+    ctx=canvas&&canvas.getContext('2d');
+    if(ctx){
+      resize();window.addEventListener('resize',resize);setupInput();
+      initCloudSaveSync();
+    }else{
+      console.error('Canvas 2D not available');
+    }
+    showTitle();
+  }catch(e){
+    console.error('Game boot failed:',e);
+    document.getElementById('title-screen')?.classList.remove('hidden');
+  }
 
   document.getElementById('play-btn').onclick=()=>showCharSelect();
   document.getElementById('shop-btn').onclick=()=>showShop();
@@ -1502,5 +1520,5 @@ window.addEventListener('load',()=>{
   document.getElementById('pause-toggle').onclick=()=>toggleGamePause();
   document.getElementById('resume-btn').onclick=()=>{if(gamePaused)toggleGamePause()};
 
-  requestAnimationFrame(gameLoop);
+  if(ctx)requestAnimationFrame(gameLoop);
 });
