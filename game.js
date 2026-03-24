@@ -214,6 +214,7 @@ function rndI(lo,hi){return Math.floor(rnd(lo,hi+1))}
 function pick(a){return a[Math.floor(Math.random()*a.length)]}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=rndI(0,i);[a[i],a[j]]=[a[j],a[i]]}return a}
 function fmtTime(t){const m=Math.floor(t/60),s=Math.floor(t%60);return m+':'+String(s).padStart(2,'0')}
+function getRunScore(){return kills+Math.floor(gtime)*10}
 
 // ──── AUDIO ────
 let actx;
@@ -1086,7 +1087,7 @@ function endRun(victory){
   saveSave(sv,{immediateCloud:true});
 
   const uname=getUsername();
-  const onlineScore=kills+Math.floor(gtime)*10;
+  const onlineScore=getRunScore();
   submitOnlineScore(uname,onlineScore,Math.floor(gtime),`Lv${player.level} ${kills}kills`);
 
   showGameOverScreen(coinsEarned);
@@ -1425,6 +1426,11 @@ function render(){
   ctx.fillStyle='#4da3ff';rr(ctx,hbX,xbY,hbW*xpP,hbH,barR);ctx.fill();
   ctx.fillStyle='#fff';ctx.shadowColor='#000';ctx.shadowBlur=4;
   ctx.fillText(`Lv.${player.level}  ${player.xp}/${player.xpNeeded} XP`,hbX+hbW/2,xbY+hbH-Math.round(5*ms));ctx.shadowBlur=0;
+
+  const scoreY=xbY+hbH+Math.round(16*ms);
+  ctx.font=`bold ${Math.round((isMobile?12:14)*ms)}px system-ui`;ctx.textAlign='center';ctx.fillStyle='#ffcc00';
+  ctx.shadowColor='#000';ctx.shadowBlur=3;
+  ctx.fillText(`Score ${getRunScore()}`,hbX+hbW/2,scoreY);ctx.shadowBlur=0;
 
   ctx.font=`bold ${Math.round(18*ms)}px system-ui`;ctx.textAlign='center';ctx.fillStyle='#fff';
   ctx.fillText(fmtTime(gtime),W/2,Math.round(28*ms));

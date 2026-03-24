@@ -8,13 +8,7 @@
 </head>
 <body>
   <div id="game-container">
-    <a href="index.html" id="back-to-hub" title="Back to Hub">&#8592;</a>
     <canvas id="game-canvas"></canvas>
-
-    <button type="button" id="pause-toggle" class="pause-toggle hidden" title="Pause (Esc / P)" aria-label="Pause game">
-      <span class="pause-glyph" aria-hidden="true"></span>
-      <span class="pause-label">Pause</span>
-    </button>
 
     <div id="pause-screen" class="overlay pause-overlay hidden">
       <div class="overlay-content">
@@ -99,6 +93,15 @@
         <div id="go-global-lb" class="lb-container"></div>
         <button id="restart-btn" class="btn-primary">CONTINUE</button>
       </div>
+    </div>
+
+    <!-- Last in stack: above canvas; pointer-events none so touches reach canvas except on controls -->
+    <div id="game-fixed-ui" class="game-fixed-ui" aria-hidden="false">
+      <a href="index.html" id="back-to-hub" title="Back to Hub">&#8592;</a>
+      <button type="button" id="pause-toggle" class="pause-toggle hidden" title="Pause (Esc / P)" aria-label="Pause game">
+        <span class="pause-glyph" aria-hidden="true"></span>
+        <span class="pause-label">Pause</span>
+      </button>
     </div>
   </div>
 
