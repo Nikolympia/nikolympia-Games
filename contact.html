@@ -40,10 +40,15 @@
       <p style="margin-top:1rem;font-size:.8rem;color:rgba(255,255,255,.3)">Or use the form — same place.</p>
     </div>
 
-    <form class="contact-form" action="https://formsubmit.co/nikoskoulouris2005@gmail.com" method="POST">
+    <form
+      class="contact-form"
+      method="POST"
+      action="https://formsubmit.co/nikoskoulouris2005@gmail.com"
+      enctype="application/x-www-form-urlencoded"
+    >
       <input type="hidden" name="_subject" value="Nikolympia Games — Message">
       <input type="hidden" name="_captcha" value="false">
-      <input type="hidden" name="_next" value="contact.html">
+      <input type="hidden" name="_next" id="nk-contact-next" value="">
       <div class="form-group">
         <label for="name">Name</label>
         <input type="text" id="name" name="name" placeholder="What should I call you?" required>
@@ -70,6 +75,17 @@
         <button type="submit" class="btn btn-purple">Send</button>
       </div>
     </form>
+    <script>
+      (function () {
+        var next = document.getElementById('nk-contact-next');
+        if (next) next.value = new URL('contact.html', window.location.href).href;
+        var f = document.querySelector('form.contact-form');
+        if (f) {
+          f.method = 'post';
+          f.setAttribute('method', 'POST');
+        }
+      })();
+    </script>
   </div>
 
   <div id="auth-modal" class="modal-overlay">

@@ -805,7 +805,7 @@ html, body {
   margin-top: 0.2rem;
 }
 
-.upg-buy, .gen-buy, .gen-tune-buy, .map-capture, .planet-buy, .q-btn {
+.upg-buy, .gen-buy, .gen-tune-buy, .map-capture, .map-pulse-btn, .planet-buy, .q-btn {
   padding: 0.45rem 0.75rem;
   font-size: 0.65rem;
   font-weight: 800;
@@ -820,7 +820,7 @@ html, body {
   transition: all 0.15s;
 }
 
-.upg-buy:disabled, .gen-buy:disabled, .gen-tune-buy:disabled, .map-capture:disabled, .planet-buy:disabled, .q-btn:disabled {
+.upg-buy:disabled, .gen-buy:disabled, .gen-tune-buy:disabled, .map-capture:disabled, .map-pulse-btn:disabled, .planet-buy:disabled, .q-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -842,6 +842,38 @@ html, body {
 
 .map-intro strong {
   color: var(--cyan);
+}
+
+.map-pulse-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(136, 68, 255, 0.35);
+  background: rgba(136, 68, 255, 0.08);
+}
+
+.map-pulse-card .upg-body {
+  flex: 1;
+  min-width: 160px;
+}
+
+.map-pulse-card .upg-title {
+  color: var(--violet);
+}
+
+.map-pulse-btn {
+  border-color: var(--violet);
+  background: rgba(136, 68, 255, 0.18);
+  color: #ccb8ff;
+}
+
+.map-pulse-btn:not(:disabled):hover {
+  border-color: #ddb8ff;
+  color: #f0e8ff;
 }
 
 .map-grid {

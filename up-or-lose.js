@@ -44,6 +44,55 @@
   const AIR_CONTROL = 0.42;
   const PH_FOOT = 4;
 
+  /** Feet apex above platform top: |JUMP_V|² / (2G) — keep every vertical gap below this minus margin. */
+  const MAX_JUMP_GAP =
+    (Math.abs(JUMP_V) * Math.abs(JUMP_V)) / (2 * GRAVITY) - 10;
+
+  /**
+   * Time (s) until feet land on a platform `gap` px above takeoff (smaller canvas y).
+   * Solves JUMP_V·t + ½G·t² = −gap on the descending branch.
+   */
+  function flightTimeToLandOnGap(gap) {
+    const G = GRAVITY;
+    const J = JUMP_V;
+    const disc = J * J - 2 * G * gap;
+    if (disc < 0) return null;
+    const t = (-J + Math.sqrt(disc)) / G;
+    return t > 0 ? t : null;
+  }
+
+  /**
+   * Max horizontal drift (px) while airborne to land `gap` above, with optimal L/R hold.
+   * Brute-force vx0 so diagonal jumps stay possible from worst prior velocity.
+   */
+  function maxHorizontalDriftForGap(gap, holdRight) {
+    const tLand = flightTimeToLandOnGap(gap);
+    if (tLand == null) return 0;
+    const ax = MOVE_A * AIR_CONTROL;
+    const dt = 1 / 300;
+    let extreme = holdRight ? -1e9 : 1e9;
+    for (let vx0 = -MAX_RUN; vx0 <= MAX_RUN; vx0 += 35) {
+      let x = 0;
+      let vx = vx0;
+      for (let t = 0; t <= tLand; t += dt) {
+        if (holdRight) vx = Math.min(MAX_RUN, vx + ax * dt);
+        else vx = Math.max(-MAX_RUN, vx - ax * dt);
+        x += vx * dt;
+      }
+      if (holdRight) extreme = Math.max(extreme, x);
+      else extreme = Math.min(extreme, x);
+    }
+    return holdRight ? extreme : -extreme;
+  }
+
+  /** Half-width (px) to expand previous-row stand band so every landing strip intersects. */
+  function reachHalfWidth(gap) {
+    return Math.max(
+      maxHorizontalDriftForGap(gap, true),
+      maxHorizontalDriftForGap(gap, false)
+    );
+  }
+
   let globalLB = [];
   let globalLBFetched = false;
   let globalLBError = '';
@@ -354,40 +403,117 @@
     }
   }
 
+  /** Valid platform left-edge x so feet strip [nx+2, nx+nw-PW-2] intersects [feetLo, feetHi]. */
+  function validPlatXRange(nw, feetLo, feetHi) {
+    const pad = 20;
+    const nxMin = feetLo - nw + PW + 2;
+    const nxMax = feetHi - 2;
+    return {
+      lo: Math.max(pad, nxMin),
+      hi: Math.min(CW - nw - pad, nxMax),
+    };
+  }
+
   function spawnLayer(prevBottomY, initial) {
     const d = difficulty();
-    /** Stay under normal-jump apex (~109px with JUMP_V) so every gap is reachable without boost */
-    const gapMin = 48 + d * 34 + (initial ? 0 : 0);
-    const gapMax = 63 + d * 37;
-    const gap = gapMin + Math.random() * (gapMax - gapMin);
-    const platY = prevBottomY - gap;
-    const count = 1 + (Math.random() < Math.min(0.82, 0.3 + d * 0.22) ? 1 : 0);
+    const gapMin = 48 + d * 34;
+    let gapMax = Math.min(63 + d * 37, MAX_JUMP_GAP);
+    if (gapMax < gapMin) gapMax = gapMin;
+
+    const prevRow = platforms.filter((p) => !p.broken && Math.abs(p.y - prevBottomY) < 0.5);
+    let standLo = CW / 2 - PW / 2;
+    let standHi = CW / 2 - PW / 2;
+    if (prevRow.length) {
+      standLo = Infinity;
+      standHi = -Infinity;
+      for (const p of prevRow) {
+        const lo = p.x + 2;
+        const hi = p.x + p.w - PW - 2;
+        if (hi >= lo) {
+          standLo = Math.min(standLo, lo);
+          standHi = Math.max(standHi, hi);
+        }
+      }
+      if (!Number.isFinite(standLo)) {
+        standLo = CW / 2 - PW / 2;
+        standHi = CW / 2 - PW / 2;
+      }
+    }
+
+    let gap = gapMin + Math.random() * (gapMax - gapMin);
+    let platY = prevBottomY - gap;
+    let reach = reachHalfWidth(gap);
+    let feetLo = standLo - reach;
+    let feetHi = standHi + reach;
+
+    for (let shrink = 0; shrink < 28; shrink++) {
+      reach = reachHalfWidth(gap);
+      feetLo = standLo - reach;
+      feetHi = standHi + reach;
+      if (feetLo > feetHi) {
+        const m = (standLo + standHi) / 2;
+        feetLo = m - 80;
+        feetHi = m + 80;
+      }
+      const probe = validPlatXRange(100, feetLo, feetHi);
+      if (probe.lo <= probe.hi) break;
+      gap = Math.max(gapMin * 0.75, gap * 0.9);
+      platY = prevBottomY - gap;
+    }
+
+    const wantTwo = Math.random() < Math.min(0.72, 0.26 + d * 0.18);
     const taken = [];
 
-    for (let c = 0; c < count; c++) {
+    function placeOnePlat(forcedW) {
+      let w = forcedW != null ? forcedW : 72 + Math.random() * 68;
+      let { lo, hi } = validPlatXRange(w, feetLo, feetHi);
+      if (lo > hi) {
+        const wNarrow = Math.max(64, Math.min(130, feetHi - feetLo + PW + 10));
+        const rN = validPlatXRange(wNarrow, feetLo, feetHi);
+        if (rN.lo <= rN.hi) {
+          w = wNarrow;
+          lo = rN.lo;
+          hi = rN.hi;
+        } else {
+          const wEm = Math.max(100, Math.min(CW - 44, feetHi - feetLo + PW + 24));
+          const fc = (feetLo + feetHi) / 2;
+          const nx = Math.max(22, Math.min(CW - wEm - 22, fc - wEm / 2 + PW / 2 - 2));
+          taken.push(nx);
+          return { x: nx, w: wEm };
+        }
+      }
+
+      let x = lo + Math.random() * (hi - lo);
       let tries = 0;
-      let x;
-      do {
-        x = 40 + Math.random() * (CW - 120);
+      while (tries < 45 && taken.length && taken.some((tx) => Math.abs(tx - x) < Math.min(95, w + 35))) {
+        x = lo + Math.random() * (hi - lo);
         tries++;
-      } while (tries < 30 && taken.some((tx) => Math.abs(tx - x) < 100));
+      }
+      if (tries >= 45 && taken.length) {
+        return null;
+      }
       taken.push(x);
+      return { x, w };
+    }
 
-      const w = 72 + Math.random() * 68;
+    const rollType = () => {
       const roll = Math.random();
-      let type = 'normal';
-      if (roll < 0.1 + d * 0.12) type = 'move';
-      else if (roll < 0.2 + d * 0.18) type = 'break';
-      else if (roll < 0.28 + d * 0.05) type = 'boost';
-      else if (roll < 0.33 + d * 0.04) type = 'tele';
+      if (roll < 0.1 + d * 0.12) return 'move';
+      if (roll < 0.2 + d * 0.18) return 'break';
+      if (roll < 0.28 + d * 0.05) return 'boost';
+      if (roll < 0.33 + d * 0.04) return 'tele';
+      return 'normal';
+    };
 
+    const first = placeOnePlat();
+    if (first) {
       addPlat({
-        x,
+        x: first.x,
         y: platY,
-        w,
+        w: first.w,
         h: 16,
-        type,
-        baseX: x,
+        type: rollType(),
+        baseX: first.x,
         phase: Math.random() * 6.28,
         broken: false,
         breakT: 0,
@@ -395,7 +521,43 @@
         moveSpd: 1.1 + d * 1.4,
         landed: false,
       });
+    } else {
+      addPlat({
+        x: 24,
+        y: platY,
+        w: CW - 48,
+        h: 16,
+        type: 'normal',
+        baseX: 24,
+        phase: 0,
+        broken: false,
+        breakT: 0,
+        moveAmp: 55 + d * 35,
+        moveSpd: 1.1 + d * 1.4,
+        landed: false,
+      });
     }
+
+    if (wantTwo && first) {
+      const second = placeOnePlat();
+      if (second) {
+        addPlat({
+          x: second.x,
+          y: platY,
+          w: second.w,
+          h: 16,
+          type: rollType(),
+          baseX: second.x,
+          phase: Math.random() * 6.28,
+          broken: false,
+          breakT: 0,
+          moveAmp: 55 + d * 35,
+          moveSpd: 1.1 + d * 1.4,
+          landed: false,
+        });
+      }
+    }
+
     return platY;
   }
 

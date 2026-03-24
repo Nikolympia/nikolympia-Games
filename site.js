@@ -458,3 +458,11 @@ function renderSections() {
       </div>`;
   }
 }
+
+// Contact page (FormSubmit): guarantee POST — some caches/CDNs serve stale markup without method.
+(function ensureContactFormUsesPost() {
+  const form = document.querySelector('form.contact-form[action*="formsubmit.co"]');
+  if (!form) return;
+  form.method = 'post';
+  form.setAttribute('method', 'POST');
+})();

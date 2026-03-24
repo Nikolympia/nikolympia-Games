@@ -242,6 +242,8 @@
       phaseMax: 1,
       lbBestScore: 0,
       lbName: 'Operator',
+      netPulseReadyUntil: 0,
+      meshPulseCount: 0,
       rareBoostUntil: 0,
       flags: {
         automationTutorial: false,
@@ -334,6 +336,17 @@
       phase: 3,
     },
     {
+      id: 'relay',
+      title: 'Relay buffer',
+      desc:
+        '+18% passive Network (N)/s per level from all captured regions — widens the pipe so N isn’t a drip feed. Stacks with Uplink and Mesh.',
+      max: 30,
+      costBase: 95,
+      costMult: 1.56,
+      currency: 'data',
+      phase: 3,
+    },
+    {
       id: 'mesh',
       title: 'Mesh protocol',
       desc:
@@ -342,6 +355,17 @@
       costBase: 2200,
       costMult: 1.78,
       currency: 'data',
+      phase: 3,
+    },
+    {
+      id: 'netpulse',
+      title: 'Packet surge',
+      desc:
+        'Mesh ping (Network tab) hits harder and cools down faster. Also adds a small Network drip every time you tap COLLECT while you own at least one region.',
+      max: 25,
+      costBase: 900,
+      costMult: 1.6,
+      currency: 'energy',
       phase: 3,
     },
     {
@@ -460,6 +484,12 @@
       test: (s) => upgLv(s, 'mesh') >= 1,
     },
     {
+      id: 'pinger',
+      name: 'Polite DDoS',
+      flavor: 'Fifty mesh pings — the nodes filed you under “persistent.”',
+      test: (s) => (s.meshPulseCount || 0) >= 50,
+    },
+    {
       id: 'full_roster',
       name: 'Everyone is here',
       flavor: 'You hired the whole stack. HR sends regards.',
@@ -548,7 +578,73 @@
     const n = state.regions.filter(Boolean).length;
     if (n === 0) return 0;
     const uplink = 1 + 0.22 * levelOf('uplink');
-    return 2.4 * n * (1 + n * 0.13) * Math.pow(1.08, levelOf('mesh')) * uplink;
+    const relay = 1 + 0.18 * levelOf('relay');
+    return 5.2 * n * (1 + n * 0.15) * Math.pow(1.08, levelOf('mesh')) * uplink * relay;
+  }
+
+  /** Seconds until next mesh ping (Packet surge shortens this). */
+  function netPulseCooldownSec() {
+    return Math.max(0.5, 2.6 - 0.085 * levelOf('netpulse'));
+  }
+
+  /** Instant N from mesh ping — scales with regions and Energy production. */
+  function netPulseBurstSize() {
+    const n = state.regions.filter(Boolean).length;
+    if (n < 1) return 0;
+    const eps = genProduction();
+    const amp = 1 + 0.11 * levelOf('netpulse');
+    return (14 + n * 32 + Math.pow(Math.max(0, eps) + 12, 0.52) * 5) * amp;
+  }
+
+  function collectNetworkDrip() {
+    if (computePhase() < 3) return;
+    const n = state.regions.filter(Boolean).length;
+    if (n < 1) return;
+    const eps = genProduction();
+    const surge = 1 + 0.07 * levelOf('netpulse');
+    const drip =
+      (0.45 * n + Math.log10(Math.max(10, eps)) * 0.35 + Math.log10(Math.max(10, state.network + 10)) * 0.12) *
+      surge;
+    state.network += Math.max(0.2, drip);
+  }
+
+  function doNetPulse() {
+    const n = state.regions.filter(Boolean).length;
+    if (n < 1) return;
+    const now = Date.now();
+    if (now < (state.netPulseReadyUntil || 0)) return;
+    const gain = netPulseBurstSize();
+    state.network += gain;
+    state.netPulseReadyUntil = now + netPulseCooldownSec() * 1000;
+    state.meshPulseCount = (state.meshPulseCount || 0) + 1;
+    sfxBuy();
+    toast('Mesh ping — +' + fmtNum(gain) + ' N');
+    save();
+    syncMapPulseUi();
+    updateResNumbers(computePhase());
+  }
+
+  function syncMapPulseUi() {
+    const btn = document.getElementById('btn-map-pulse');
+    const meta = document.getElementById('map-pulse-meta');
+    if (!btn || !meta) return;
+    const n = state.regions.filter(Boolean).length;
+    const now = Date.now();
+    const ready = now >= (state.netPulseReadyUntil || 0);
+    if (n < 1) {
+      btn.disabled = true;
+      meta.textContent = 'Capture a region first — then you can ping the mesh for instant N.';
+      return;
+    }
+    btn.disabled = !ready;
+    const nextN = fmtNum(netPulseBurstSize());
+    const cd = netPulseCooldownSec().toFixed(1);
+    if (!ready) {
+      const left = Math.max(0, ((state.netPulseReadyUntil || 0) - now) / 1000);
+      meta.textContent = 'Ready in ' + left.toFixed(1) + 's · next +' + nextN + ' N';
+    } else {
+      meta.textContent = 'Active: +' + nextN + ' N · ' + cd + 's cooldown · buy Packet surge (Core) for more';
+    }
   }
 
   function matterPerSecond() {
@@ -640,6 +736,12 @@
       label: 'Buy Uplink priming once (speeds up Network income)',
       show: (s, p) => p >= 3 && levelOf('cache') >= 1,
       done: (s) => levelOf('uplink') >= 1,
+    },
+    {
+      id: 'mesh_ping_once',
+      label: 'Use Mesh ping on the Network tab (instant N while you wait)',
+      show: (s, p) => p >= 3 && s.regions.some(Boolean),
+      done: (s) => (s.meshPulseCount || 0) >= 1,
     },
     {
       id: 'phase_4',
@@ -852,6 +954,8 @@
           typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(6, o.phaseMax) : d.phaseMax,
         lbBestScore: Math.max(0, parseInt(o.lbBestScore, 10) || 0),
         lbName: String(o.lbName != null ? o.lbName : d.lbName).slice(0, 24),
+        netPulseReadyUntil: typeof o.netPulseReadyUntil === 'number' ? o.netPulseReadyUntil : 0,
+        meshPulseCount: Math.max(0, parseInt(o.meshPulseCount, 10) || 0),
       };
       if (state.genLevels.length < GEN_DEFS.length) {
         while (state.genLevels.length < GEN_DEFS.length) state.genLevels.push(0);
@@ -1114,6 +1218,9 @@
     if (!state.regions.some(Boolean)) {
       return 'Network tab: Capture at least one region (Energy) — that starts passive Network (N) income.';
     }
+    if ((state.meshPulseCount || 0) < 1) {
+      return 'Network tab: hit Mesh ping for instant N — then grab Relay buffer (Data) so passive N/s isn’t boring.';
+    }
     if (levelOf('uplink') < 1 && levelOf('cache') >= 1) {
       return 'Buy Uplink priming (Core, Data) — inexpensive levels that multiply N/s from every region you hold.';
     }
@@ -1277,7 +1384,16 @@
 
   function renderMap() {
     let html =
-      '<p class="map-intro"><strong>Network (N)</strong> trickles in from regions you’ve captured — passive rent from nodes on your mesh. Spend <strong>Energy</strong> once per region to Capture. On Core (Data): <em>Uplink priming</em> boosts N/s early; <em>Mesh protocol</em> makes captures cheaper and buffs N/s further.</p><div class="map-grid">';
+      '<p class="map-intro"><strong>Network (N)</strong> comes from captured regions (passive N/s) <em>and</em> you can spam <strong>Mesh ping</strong> below for instant bursts — no waiting. Core upgrades: <em>Relay buffer</em> &amp; <em>Uplink</em> (Data), <em>Packet surge</em> (Energy) for faster pings + tiny N on every COLLECT tap.</p>' +
+      '<div class="map-pulse-card">' +
+      '<div class="upg-body">' +
+      '<div class="upg-title">Mesh ping</div>' +
+      '<div class="upg-desc">Active play: fire a handshake burst into the mesh. Cooldown is short — upgrade <em>Packet surge</em> on Core to go faster and hit harder.</div>' +
+      '<div class="upg-meta" id="map-pulse-meta">—</div>' +
+      '</div>' +
+      '<button type="button" class="map-pulse-btn" id="btn-map-pulse" disabled>Ping mesh</button>' +
+      '</div>' +
+      '<div class="map-grid">';
     REGION_NAMES.forEach((name, i) => {
       const cap = state.regions[i];
       const cost = regionCost(i);
@@ -1290,6 +1406,7 @@
     });
     html += '</div>';
     el.panelMap.innerHTML = html;
+    syncMapPulseUi();
   }
 
   function renderSpace() {
@@ -1520,6 +1637,10 @@
     });
 
     el.panelMap.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-map-pulse') || e.target.closest('.map-pulse-btn')) {
+        doNetPulse();
+        return;
+      }
       const b = e.target.closest('[data-region]');
       if (!b) return;
       const i = +b.dataset.region;
@@ -1554,11 +1675,14 @@
     const p = clickPower();
     state.energy += p;
     state.totalEnergyEarned += p;
+    collectNetworkDrip();
     sfxClick();
     el.orbGain.textContent = '+' + fmtNum(clickPower());
     el.orbGain.animate([{ transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 120 });
     checkAchievements();
     updatePurchaseButtonStates(computePhase());
+    updateResNumbers(computePhase());
+    syncMapPulseUi();
   });
 
   document.querySelectorAll('.asc-tab').forEach((tab) => {
@@ -1823,6 +1947,7 @@
     if (qf) qf.style.width = state.quantumCharge + '%';
     const dq = document.getElementById('btn-discharge');
     if (dq) dq.disabled = state.quantumCharge < 100;
+    syncMapPulseUi();
   }
 
   function loop(now) {
