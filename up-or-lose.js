@@ -135,20 +135,63 @@
     };
   }
 
+  function normalizeProgress(o) {
+    return {
+      username: String((o && o.username) || 'Player').slice(0, 16),
+      best: Math.max(0, parseInt(o && o.best, 10) || 0),
+      updatedAt: Math.max(0, Number(o && o.updatedAt) || 0),
+    };
+  }
+
   function loadSave() {
     try {
       const o = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
-      return {
-        username: String(o.username || 'Player').slice(0, 16),
-        best: Math.max(0, parseInt(o.best, 10) || 0),
-      };
+      return normalizeProgress(o);
     } catch {
-      return { username: 'Player', best: 0 };
+      return { username: 'Player', best: 0, updatedAt: 0 };
     }
   }
 
-  function saveSave(s) {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ username: s.username, best: s.best }));
+  function saveSave(s, opts) {
+    opts = opts || {};
+    const next = normalizeProgress(s);
+    if (!opts.preserveTimestamp) next.updatedAt = Date.now();
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(next));
+    } catch (_) {}
+    if (opts.skipCloud) return;
+    if (typeof NkCloudGameSave === 'undefined' || typeof firebase === 'undefined' || !firebase.auth().currentUser)
+      return;
+    if (opts.immediateCloud) NkCloudGameSave.pushNow(NkCloudGameSave.GAME_UOL, next);
+    else NkCloudGameSave.schedulePush(NkCloudGameSave.GAME_UOL, () => normalizeProgress(loadSave()), 1800);
+  }
+
+  function initCloudProgressSync() {
+    if (typeof firebase === 'undefined' || !window.__NK_FB_DB || typeof NkCloudGameSave === 'undefined') return;
+    NkCloudGameSave.onVisibilityFlush(NkCloudGameSave.GAME_UOL, () => normalizeProgress(loadSave()));
+    firebase.auth().onAuthStateChanged(async (user) => {
+      if (!user) return;
+      const remote = await NkCloudGameSave.pull(NkCloudGameSave.GAME_UOL);
+      const local = loadSave();
+      if (remote && remote.save && typeof remote.save === 'object') {
+        const r = normalizeProgress(remote.save);
+        const rT = Math.max(r.updatedAt || 0, remote.updatedAt || 0);
+        r.updatedAt = rT;
+        const lT = local.updatedAt || 0;
+        if (rT > lT) {
+          saveSave(r, { preserveTimestamp: true, skipCloud: true });
+          const nameInp = document.getElementById('uol-name');
+          if (nameInp) nameInp.value = loadSave().username;
+          const hud = document.getElementById('uol-hud-best');
+          if (hud) hud.textContent = String(loadSave().best);
+        } else {
+          await NkCloudGameSave.pushNow(NkCloudGameSave.GAME_UOL, normalizeProgress(local));
+        }
+      } else {
+        await NkCloudGameSave.pushNow(NkCloudGameSave.GAME_UOL, normalizeProgress(local));
+      }
+      fetchGlobalLB().then(renderMenuLB);
+    });
   }
 
   async function submitOnline(name, score, seconds, text) {
@@ -888,7 +931,7 @@
     const prevBest = s.best;
     if (heightPx > s.best) {
       s.best = heightPx;
-      saveSave(s);
+      saveSave(s, { immediateCloud: true });
     }
     function refreshRankLine() {
       const rank = computeRank(heightPx);
@@ -1054,6 +1097,7 @@
 
   const sv = loadSave();
   document.getElementById('uol-name').value = sv.username;
+  initCloudProgressSync();
   fetchGlobalLB().then(renderMenuLB);
 
   window.addEventListener('pageshow', (ev) => {

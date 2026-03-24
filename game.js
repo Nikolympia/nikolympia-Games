@@ -307,16 +307,29 @@ async function pushSaveToCloud(s){
   try{
     const payload=normalizeSave(s);
     payload.updatedAt=payload.updatedAt||Date.now();
-    await db.collection('users').doc(u.uid).set({
-      voidSurvivorsSave:payload,
-      voidSaveUpdatedAt:payload.updatedAt
-    },{merge:true});
+    if(typeof NkCloudGameSave!=='undefined'){
+      await NkCloudGameSave.pushNow(NkCloudGameSave.GAME_VOID,payload);
+    }else{
+      await db.collection('users').doc(u.uid).set({
+        voidSurvivorsSave:payload,
+        voidSaveUpdatedAt:payload.updatedAt
+      },{merge:true});
+    }
   }catch(e){console.warn('Cloud save failed:',e)}
 }
 async function pullSaveFromCloud(){
   const u=firebase.auth().currentUser,db=window.__NK_FB_DB;
   if(!u||!db)return null;
   try{
+    if(typeof NkCloudGameSave!=='undefined'){
+      const r=await NkCloudGameSave.pull(NkCloudGameSave.GAME_VOID);
+      if(r&&r.save&&typeof r.save==='object'){
+        const s=normalizeSave(r.save);
+        const topT=Math.max(s.updatedAt||0,Math.floor(Number(r.updatedAt)||0));
+        if(topT)s.updatedAt=topT;
+        return s;
+      }
+    }
     const doc=await db.collection('users').doc(u.uid).get();
     if(!doc.exists)return null;
     const d=doc.data();
@@ -331,8 +344,8 @@ async function pullSaveFromCloud(){
 function initCloudSaveSync(){
   if(typeof firebase==='undefined'||!window.__NK_FB_DB||typeof firebase.auth!=='function')return;
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='hidden'&&pendingCloudPayload&&firebase.auth().currentUser)
-      pushSaveToCloud(pendingCloudPayload);
+    if(document.visibilityState==='hidden'&&firebase.auth().currentUser)
+      pushSaveToCloud(pendingCloudPayload||loadSave());
   });
   firebase.auth().onAuthStateChanged(async user=>{
     if(!user)return;

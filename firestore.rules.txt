@@ -73,5 +73,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Per-game cloud saves: users/{uid}/games/{gameId}
+    // gameId allowlist keeps writes predictable; expand when you add games.
+    match /users/{userId}/games/{gameId} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId
+        && gameId in [
+          'void_survivors',
+          'up_or_lose',
+          'ascension_protocol',
+        ];
+    }
   }
 }

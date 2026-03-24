@@ -1004,36 +1004,66 @@
     } catch (e) {
       console.warn('[Ascension] Save failed', e);
     }
+    if (typeof NkCloudGameSave !== 'undefined' && firebase.auth().currentUser) {
+      NkCloudGameSave.schedulePush(NkCloudGameSave.GAME_ASCENSION, () => JSON.parse(JSON.stringify(state)), 2500);
+    }
+  }
+
+  /** Apply parsed save object into `state` (same rules as loading from localStorage). */
+  function applySaveObject(o) {
+    if (!o || typeof o !== 'object') return;
+    const d = defaultState();
+    state = {
+      ...d,
+      ...o,
+      genLevels: o.genLevels && o.genLevels.length ? o.genLevels : d.genLevels,
+      flags: { ...d.flags, ...(o.flags || {}) },
+      upgLevels: { ...d.upgLevels, ...(o.upgLevels || {}) },
+      achievements: { ...d.achievements, ...(o.achievements || {}) },
+      storySeen: { ...d.storySeen, ...(o.storySeen || {}) },
+      phaseMax:
+        typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(6, o.phaseMax) : d.phaseMax,
+      lbBestScore: Math.max(0, parseInt(o.lbBestScore, 10) || 0),
+      lbName: String(o.lbName != null ? o.lbName : d.lbName).slice(0, 24),
+      netPulseReadyUntil: typeof o.netPulseReadyUntil === 'number' ? o.netPulseReadyUntil : 0,
+      meshPulseCount: Math.max(0, parseInt(o.meshPulseCount, 10) || 0),
+    };
+    if (state.genLevels.length < GEN_DEFS.length) {
+      while (state.genLevels.length < GEN_DEFS.length) state.genLevels.push(0);
+    }
+    state.phaseMax = Math.min(6, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
+    migrateProgressiveFlags();
   }
 
   function load() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return;
-      const o = JSON.parse(raw);
-      const d = defaultState();
-      state = {
-        ...d,
-        ...o,
-        genLevels: o.genLevels && o.genLevels.length ? o.genLevels : d.genLevels,
-        flags: { ...d.flags, ...(o.flags || {}) },
-        upgLevels: { ...d.upgLevels, ...(o.upgLevels || {}) },
-        achievements: { ...d.achievements, ...(o.achievements || {}) },
-        storySeen: { ...d.storySeen, ...(o.storySeen || {}) },
-        phaseMax:
-          typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(6, o.phaseMax) : d.phaseMax,
-        lbBestScore: Math.max(0, parseInt(o.lbBestScore, 10) || 0),
-        lbName: String(o.lbName != null ? o.lbName : d.lbName).slice(0, 24),
-        netPulseReadyUntil: typeof o.netPulseReadyUntil === 'number' ? o.netPulseReadyUntil : 0,
-        meshPulseCount: Math.max(0, parseInt(o.meshPulseCount, 10) || 0),
-      };
-      if (state.genLevels.length < GEN_DEFS.length) {
-        while (state.genLevels.length < GEN_DEFS.length) state.genLevels.push(0);
-      }
-      state.phaseMax = Math.min(6, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
-      migrateProgressiveFlags();
+      applySaveObject(JSON.parse(raw));
     } catch (e) {
       state = defaultState();
+    }
+  }
+
+  async function syncAscensionCloud() {
+    if (typeof NkCloudGameSave === 'undefined' || typeof firebase === 'undefined' || !window.__NK_FB_DB) return;
+    const user = firebase.auth().currentUser;
+    if (!user) return;
+    const remote = await NkCloudGameSave.pull(NkCloudGameSave.GAME_ASCENSION);
+    const localTs = state.lastTs || 0;
+    if (remote && remote.save && typeof remote.save === 'object') {
+      const cloudTs = Math.max(remote.updatedAt || 0, Number(remote.save.lastTs) || 0);
+      if (cloudTs > localTs) {
+        applySaveObject(remote.save);
+        try {
+          localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+        } catch (_) {}
+        fullRender();
+      } else {
+        await NkCloudGameSave.pushNow(NkCloudGameSave.GAME_ASCENSION, JSON.parse(JSON.stringify(state)));
+      }
+    } else {
+      await NkCloudGameSave.pushNow(NkCloudGameSave.GAME_ASCENSION, JSON.parse(JSON.stringify(state)));
     }
   }
 
@@ -2053,6 +2083,14 @@
 
   setInterval(save, SAVE_INTERVAL);
   window.addEventListener('beforeunload', save);
+  if (typeof NkCloudGameSave !== 'undefined') {
+    NkCloudGameSave.onVisibilityFlush(NkCloudGameSave.GAME_ASCENSION, () => JSON.parse(JSON.stringify(state)));
+  }
+  if (typeof firebase !== 'undefined' && window.__NK_FB_DB && typeof NkCloudGameSave !== 'undefined') {
+    firebase.auth().onAuthStateChanged((user) => {
+      if (user) syncAscensionCloud();
+    });
+  }
   requestAnimationFrame(loop);
 
   // Dev export
