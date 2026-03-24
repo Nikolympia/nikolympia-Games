@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0e18">
+  <title>Up or Lose — Nikolympia</title>
+  <link rel="stylesheet" href="up-or-lose.css">
+</head>
+<body>
+  <div id="uol-app">
+    <a href="index.html" class="uol-hub" title="Hub">&#8592;</a>
+
+    <section id="uol-title" class="uol-screen">
+      <header class="uol-brand">
+        <h1 class="uol-logo">UP OR <span>LOSE</span></h1>
+        <p class="uol-tag">Auto-jump · rising poison · don’t fall</p>
+      </header>
+
+      <div class="uol-podium-wrap">
+        <h2 class="uol-h2">Podium</h2>
+        <div class="uol-podium" id="uol-podium">
+          <div class="uol-stand uol-s2"><span class="uol-medal">2</span><b id="uol-p2-name">—</b><em id="uol-p2-h">—</em></div>
+          <div class="uol-stand uol-s1"><span class="uol-medal">1</span><b id="uol-p1-name">—</b><em id="uol-p1-h">—</em></div>
+          <div class="uol-stand uol-s3"><span class="uol-medal">3</span><b id="uol-p3-name">—</b><em id="uol-p3-h">—</em></div>
+        </div>
+      </div>
+
+      <div class="uol-field">
+        <label for="uol-name">Name</label>
+        <input id="uol-name" type="text" maxlength="16" placeholder="Player" autocomplete="username">
+      </div>
+
+      <div class="uol-lb-wrap" id="uol-lb-wrap">
+        <h2 class="uol-h2">Global · Top 20 · Height</h2>
+        <div id="uol-lb" class="uol-lb">Loading…</div>
+      </div>
+
+      <button type="button" class="uol-btn uol-btn-main" id="uol-play">Play</button>
+      <p class="uol-keys">← → or A D · P pause · Touch sides on phone</p>
+    </section>
+
+    <section id="uol-game" class="uol-screen uol-hidden">
+      <div class="uol-game-layout">
+        <div class="uol-game-main">
+          <div class="uol-hud">
+            <span class="uol-hud-h" id="uol-hud-h">0</span>
+            <span class="uol-hud-poison" id="uol-hud-poison" title="Clearance above poison">Poison —</span>
+            <div class="uol-hud-actions">
+              <button type="button" class="uol-pause-btn" id="uol-pause" aria-pressed="false" aria-label="Pause">Pause</button>
+              <span class="uol-hud-best">Best <strong id="uol-hud-best">0</strong></span>
+            </div>
+          </div>
+          <div class="uol-canvas-outer">
+            <canvas id="uol-canvas" width="480" height="720" aria-label="Up or Lose"></canvas>
+          </div>
+        </div>
+        <aside class="uol-legend-rail" aria-hidden="true">
+          <p class="uol-legend-rail-title">Platforms</p>
+          <ul class="uol-legend-rail-list">
+            <li><span class="uol-swatch" style="background:#a8b8d8"></span><span>Gray-blue — solid, auto-jump</span></li>
+            <li><span class="uol-swatch" style="background:#7ec8ff"></span><span>Sky — slides sideways</span></li>
+            <li><span class="uol-swatch" style="background:#ffaa66"></span><span>Orange — breaks after land</span></li>
+            <li><span class="uol-swatch" style="background:#66ffaa"></span><span>Mint — big jump</span></li>
+            <li><span class="uol-swatch" style="background:#cc88ff"></span><span>Purple — teleport</span></li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section id="uol-over" class="uol-screen uol-hidden">
+      <h2 class="uol-over-title" id="uol-over-title">Fell off</h2>
+      <p class="uol-over-height">Height <strong id="uol-final-h">0</strong></p>
+      <p class="uol-over-rank" id="uol-rank-line"></p>
+      <p class="uol-over-nudge uol-hidden" id="uol-nudge"></p>
+      <button type="button" class="uol-btn uol-btn-main" id="uol-again">Instant restart</button>
+      <button type="button" class="uol-btn uol-btn-ghost" id="uol-menu">Menu</button>
+    </section>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="up-or-lose.js"></script>
+</body>
+</html>

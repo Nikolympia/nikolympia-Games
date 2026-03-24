@@ -16,6 +16,15 @@ const GAMES_DB = {
     tags: ['Incremental', 'Strategy', 'Idle'],
     desc: 'Long-form AI awakening clicker: six phases, five currencies, network map, space colonies, quantum bursts — built for days of progression.',
     live: true
+  },
+  'up-or-lose': {
+    id: 'up-or-lose',
+    name: 'Up or Lose',
+    url: 'up-or-lose.html',
+    img: 'up_or_lose_cover.svg',
+    tags: ['Arcade', 'Platformer', 'Endless'],
+    desc: 'Auto-jump vertical climb: moving platforms, boosts, teleports, breakables — don’t fall. Global podium and local best.',
+    live: true
   }
 };
 
