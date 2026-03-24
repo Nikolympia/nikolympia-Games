@@ -375,7 +375,9 @@ function renderGlobalLB(containerId,highlightName){
 }
 
 // ──── MOBILE DETECTION ────
-const isMobile='ontouchstart'in window||navigator.maxTouchPoints>0;
+// Narrow window or real phone/tablet — not "any PC with a touchscreen"
+const isMobile=/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  ||Math.min(window.innerWidth,window.innerHeight)<=640;
 const MOB={
   sizeScale:isMobile?1.5:1,
   pickupScale:isMobile?1.6:1,
@@ -1263,8 +1265,9 @@ function render(){
   ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
 
   const ms=isMobile?1.4:1;
+  const barR=6,rGap=Math.round(8*ms);
   const hbH=Math.round((isMobile?15:24)*ms);
-  const hbW=Math.min((isMobile?240:380)*ms,W*(isMobile?0.44:0.52));
+  const hbW=Math.min((isMobile?240:400)*ms,W*(isMobile?0.44:0.55));
   let hbX, hbY;
   if(isMobile){
     hbX=12;hbY=8;
@@ -1274,7 +1277,6 @@ function render(){
     const clearance=Math.round(22*ms);
     hbY=weaponWy-clearance-(hbH*2+rGap);
   }
-  const barR=6,rGap=Math.round(8*ms);
   const drawBarBack=(x,y,w,h)=>{ctx.fillStyle='rgba(0,0,0,.55)';rr(ctx,x-2,y-2,w+4,h+4,barR+2);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.35)';ctx.lineWidth=2;rr(ctx,x-2,y-2,w+4,h+4,barR+2);ctx.stroke()};
   drawBarBack(hbX,hbY,hbW,hbH);
   ctx.fillStyle='rgba(255,0,0,.22)';rr(ctx,hbX,hbY,hbW,hbH,barR);ctx.fill();
