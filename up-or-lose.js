@@ -32,9 +32,11 @@
   const PW = 30;
   const PH = 36;
   const GRAVITY = 2650;
-  /** Apex ≈ v²/(2g) — slightly toned down vs peak; gaps scaled to match */
-  const JUMP_V = -762;
-  const BOOST_V = -1035;
+  /** Auto-jump / boost (upward = negative). Slightly softer than before. */
+  const JUMP_V = -686;
+  const BOOST_V = -932;
+  /** Orange (break) platforms reappear after this many seconds. */
+  const BREAK_RESPAWN_SEC = 2.5;
   const POISON_START_OFFSET = 420;
   const POISON_RISE_BASE = 34;
   const POISON_RISE_PER_D = 52;
@@ -736,7 +738,16 @@
     for (const p of platforms) {
       if (p.landed && p.breakT > 0) {
         p.breakT -= dt;
-        if (p.breakT <= 0) p.broken = true;
+        if (p.breakT <= 0) {
+          p.broken = true;
+          p.landed = false;
+          if (p.type === 'break') p.respawnAt = runTime + BREAK_RESPAWN_SEC;
+        }
+      }
+      if (p.type === 'break' && p.broken && p.respawnAt != null && runTime >= p.respawnAt) {
+        p.broken = false;
+        p.breakT = 0;
+        p.respawnAt = null;
       }
     }
 
