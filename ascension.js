@@ -20,6 +20,15 @@
   const SAVE_INTERVAL = 8000;
   /** Endgame phases (was 6; 7–9 add Echo + deep upgrades). */
   const PHASE_CAP = 9;
+  /** Hard cap for currencies / totals — avoids Number overflow glitches near MAX_VALUE. */
+  const ECON_MAX = 1e220;
+  /** Offer / stress rebirth when totals approach the cap. */
+  const ECON_REBIRTH_WARN = ECON_MAX * 0.5;
+  /** Minimum progress before rebirth is allowed (phase 6+ or serious lifetime E). */
+  const REBIRTH_MIN_PHASE = 6;
+  const REBIRTH_MIN_TE = 5e20;
+  const REBIRTH_MULT_PER = 0.06;
+  const REBIRTH_MULT_CAP = 3.4;
 
   // ═══ NUMBER FORMAT ═══════════════════════════════════════
   const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
@@ -302,6 +311,7 @@
       netPulseReadyUntil: 0,
       meshPulseCount: 0,
       rareBoostUntil: 0,
+      rebirthCount: 0,
       flags: {
         automationTutorial: false,
         generatorsTab: false,
@@ -761,30 +771,106 @@
 
   // ═══ PHASE ═══════════════════════════════════════════════
   /**
-   * Raw phase from current stats (can go down if you spend resources).
-   * Displayed phase uses phaseMax — once you reach e.g. phase 5, you never fall back to 4.
+   * Highest phase your *stats* justify, evaluated as a strict ladder (no skipping 7→9 via one huge number).
+   * Phases 7–9 require the listed Quantum / Echo / upgrades — not raw lifetime E alone.
    */
-  function computePhaseFromProgress() {
+  function computeSequentialPhase() {
     const E = state.energy;
     const te = state.totalEnergyEarned;
     const regN = state.regions.filter(Boolean).length;
-    let p = 1;
-    if (state.genLevels.some((n) => n > 0) || te >= 2500 || E >= 50000) p = 2;
-    if (p >= 2 && (regN >= 1 || levelOf('cache') >= 1 || E >= 1e9)) p = 3;
-    if (p >= 3 && (regN >= 3 || levelOf('mesh') >= 1 || E >= 5e13)) p = 4;
-    if (p >= 4 && (state.planets.some((n) => n > 0) || state.matter >= 250 || E >= 1e16)) p = 5;
-    if (p >= 5 && (state.quantumTotal >= 1 || levelOf('qseed') >= 1 || E >= 1e21)) p = 6;
-    if (p >= 6 && (state.quantumTotal >= 36 || levelOf('harmonic') >= 6 || E >= 4e23 || te >= 3e29)) p = 7;
-    if (p >= 7 && ((state.echo || 0) >= 20 || levelOf('echo_well') >= 4 || te >= 2e31 || E >= 2e25)) p = 8;
-    if (p >= 8 && (state.quantumTotal >= 200 || levelOf('lattice') >= 6 || (state.echo || 0) >= 320 || te >= 5e33))
-      p = 9;
-    return Math.min(PHASE_CAP, p);
+    if (!(state.genLevels.some((n) => n > 0) || te >= 2500 || E >= 50000)) return 1;
+    if (!(regN >= 1 || levelOf('cache') >= 1 || E >= 1e9)) return 2;
+    if (!(regN >= 3 || levelOf('mesh') >= 1 || E >= 5e13)) return 3;
+    if (!(state.planets.some((n) => n > 0) || state.matter >= 250 || E >= 1e16)) return 4;
+    if (!(state.quantumTotal >= 1 || levelOf('qseed') >= 1 || E >= 1e21)) return 5;
+    if (!(state.quantumTotal >= 36 || levelOf('harmonic') >= 6)) return 6;
+    if (!((state.echo || 0) >= 20 || levelOf('echo_well') >= 4)) return 7;
+    if (!(state.quantumTotal >= 200 || levelOf('lattice') >= 6 || (state.echo || 0) >= 320)) return 8;
+    return Math.min(PHASE_CAP, 9);
   }
 
+  /**
+   * phaseMax only rises one tier per sync when stats allow — no 6→9 jumps. On load, inflated phaseMax is
+   * clamped down to what the ladder allows (fixes saves that used old Energy/te shortcuts).
+   */
   function syncPhaseMax() {
-    const raw = computePhaseFromProgress();
-    const cur = typeof state.phaseMax === 'number' && state.phaseMax >= 1 ? state.phaseMax : 1;
-    state.phaseMax = Math.min(PHASE_CAP, Math.max(cur, raw));
+    const seq = computeSequentialPhase();
+    let cur = typeof state.phaseMax === 'number' && state.phaseMax >= 1 ? state.phaseMax : 1;
+    if (seq > cur) state.phaseMax = Math.min(PHASE_CAP, cur + 1);
+    else state.phaseMax = Math.min(PHASE_CAP, cur);
+  }
+
+  function capEconomy(n) {
+    if (!isFinite(n) || n < 0) return 0;
+    return Math.min(n, ECON_MAX);
+  }
+
+  function clampEconomy() {
+    state.energy = capEconomy(state.energy);
+    state.data = capEconomy(state.data);
+    state.network = capEconomy(state.network);
+    state.matter = capEconomy(state.matter);
+    state.quantum = capEconomy(state.quantum);
+    state.echo = capEconomy(state.echo || 0);
+    state.totalEnergyEarned = capEconomy(state.totalEnergyEarned);
+    state.peakEnergy = capEconomy(state.peakEnergy);
+  }
+
+  function rebirthProductionMult() {
+    const n = Math.max(0, Math.floor(state.rebirthCount || 0));
+    return Math.min(REBIRTH_MULT_CAP, 1 + REBIRTH_MULT_PER * n);
+  }
+
+  function canRebirth() {
+    const te = state.totalEnergyEarned || 0;
+    const nearCap =
+      state.energy >= ECON_REBIRTH_WARN ||
+      te >= ECON_REBIRTH_WARN ||
+      state.data >= ECON_REBIRTH_WARN ||
+      state.network >= ECON_REBIRTH_WARN ||
+      state.matter >= ECON_REBIRTH_WARN;
+    return state.phaseMax >= REBIRTH_MIN_PHASE || te >= REBIRTH_MIN_TE || nearCap;
+  }
+
+  function performRebirth() {
+    if (!canRebirth()) {
+      toast('Rebirth locked — reach Phase 6 or ' + fmtNum(REBIRTH_MIN_TE) + ' lifetime E first.');
+      return;
+    }
+    if (
+      !confirm(
+        'Rebirth wipes this run (buildings, currencies, phase, upgrades) but keeps achievements & play time. You gain a permanent production multiplier. Continue?'
+      )
+    )
+      return;
+    state.rebirthCount = (state.rebirthCount || 0) + 1;
+    state.energy = 0;
+    state.data = 0;
+    state.network = 0;
+    state.matter = 0;
+    state.quantum = 0;
+    state.echo = 0;
+    state.totalEnergyEarned = 0;
+    state.peakEnergy = 0;
+    state.clickLevel = 0;
+    state.clickMult = 1;
+    state.genLevels = defaultState().genLevels.slice();
+    state.upgLevels = {};
+    state.regions = defaultState().regions.slice();
+    state.planets = defaultState().planets.slice();
+    state.quantumCharge = 0;
+    state.quantumTotal = 0;
+    state.phaseMax = 1;
+    state.phaseSeen = 1;
+    state.netPulseReadyUntil = 0;
+    state.meshPulseCount = 0;
+    state.rareBoostUntil = 0;
+    state.storySeen = {};
+    state.flags = defaultState().flags;
+    migrateProgressiveFlags();
+    save();
+    toast('Rebirth #' + state.rebirthCount + ' — +' + Math.round(REBIRTH_MULT_PER * 100) + '% production per rebirth (capped).');
+    fullRender();
   }
 
   /** Permanent high-water phase for UI, tabs, and story gates. */
@@ -805,7 +891,7 @@
       total += g.base * lv * Math.pow(1.12, lv) * syn * genTuneMult(i);
     });
     const rare = Date.now() < state.rareBoostUntil ? 1.35 : 1;
-    return total * rare * cascade * lattice;
+    return total * rare * cascade * lattice * rebirthProductionMult();
   }
 
   function dataPerSecond() {
@@ -1058,7 +1144,7 @@
     },
     {
       id: 'phase_7',
-      label: 'Reach Phase 7: more Quantum discharges, Harmonic upgrades, huge Energy, or lifetime earnings',
+      label: 'Reach Phase 7: Quantum discharges + Harmonic (Q) — phases climb one step at a time',
       show: (s, p) => p >= 6,
       done: (s, p) => p >= 7,
     },
@@ -1070,7 +1156,7 @@
     },
     {
       id: 'phase_8',
-      label: 'Reach Phase 8: stack Echo, Lattice, Quantum total, or push lifetime earnings further',
+      label: 'Reach Phase 8: Echo (Ψ) + Echo condenser, Lattice, or high Quantum total',
       show: (s, p) => p >= 7,
       done: (s, p) => p >= 8,
     },
@@ -1082,7 +1168,7 @@
     },
     {
       id: 'phase_9',
-      label: 'Reach Phase 9: max out consensus path — Quantum, Echo, Lattice, or absurd totals',
+      label: 'Reach Phase 9: Quantum + Lattice + Echo milestones (final tier)',
       show: (s, p) => p >= 8,
       done: (s, p) => p >= 9,
     },
@@ -1285,7 +1371,12 @@
       while (state.planets.length < PLANET_DEFS.length) state.planets.push(0);
     }
     if (typeof state.echo !== 'number' || !isFinite(state.echo)) state.echo = 0;
-    state.phaseMax = Math.min(PHASE_CAP, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
+    if (typeof state.rebirthCount !== 'number' || !isFinite(state.rebirthCount) || state.rebirthCount < 0)
+      state.rebirthCount = 0;
+    const seqAfterLoad = computeSequentialPhase();
+    if (state.phaseMax > seqAfterLoad) state.phaseMax = seqAfterLoad;
+    state.phaseMax = Math.min(PHASE_CAP, Math.max(1, state.phaseMax || 1));
+    clampEconomy();
     migrateProgressiveFlags();
   }
 
@@ -1354,6 +1445,8 @@
     if (computePhase() >= 6) {
       state.quantumCharge = Math.min(100, state.quantumCharge + quantumFillRate() * dt);
     }
+    if (state.energy > state.peakEnergy) state.peakEnergy = state.energy;
+    clampEconomy();
     state.totalPlaySeconds += dt;
     state.lastTs = now;
     return dt;
@@ -1601,7 +1694,7 @@
     }
     if (phase < 7) {
       return (
-        'Phase 7: keep discharging Quantum, buy Quantum resonator (Q), push Energy toward ~4e23+, or scale lifetime earnings — Echo (Ψ) appears on discharges; Echo condenser (Matter) unlocks passive Ψ/s.'
+        'Phase 7: stack Quantum discharges, buy Quantum resonator (Q), and push Harmonic levels — Echo (Ψ) from discharges; Echo condenser (Matter) unlocks passive Ψ/s. Phases advance one at a time.'
       );
     }
     if (levelOf('echo_well') < 1) {
@@ -1611,9 +1704,11 @@
       return 'Phase 8: spend Ψ on Reality lattice & Deep telemetry, grow Quantum total (~200+ discharges worth of progress), or farm Echo toward ~320+.';
     }
     if (phase < 9) {
-      return 'Phase 9: max Lattice, stack Echo, push Quantum total and lifetime Energy earned into the 1e34+ range — then buy Final consensus & Observer node for compounding.';
+      return 'Phase 9: max Reality lattice, stack Echo (Ψ), and grow Quantum discharges — then buy Final consensus & Observer node. Raw Energy alone no longer skips tiers.';
     }
-    return 'Endgame: level Final consensus (Ψ) for global passive mult, Observer node for taps, colonize Universe seed, and chase achievements / leaderboard rating.';
+    return (
+      'Endgame: Final consensus (Ψ), Observer node, late colonies — or Rebirth (Directives) before numbers hit the cap for a permanent production multiplier.'
+    );
   }
 
   function renderObjective(phase) {
@@ -1627,6 +1722,10 @@
       label: d.label,
       done: d.done(state, phase),
     }));
+    rows.sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return a.id.localeCompare(b.id);
+    });
     const sig = rows.map((r) => r.id + (r.done ? '1' : '0')).join('|');
     if (sig === checklistSig && el.checklistRoot.childElementCount > 0) return;
     checklistSig = sig;
@@ -1641,11 +1740,47 @@
       .join('');
   }
 
+  function upgCurrencyAmount(u) {
+    return u.currency === 'energy'
+      ? state.energy
+      : u.currency === 'data'
+        ? state.data
+        : u.currency === 'network'
+          ? state.network
+          : u.currency === 'matter'
+            ? state.matter
+            : u.currency === 'quantum'
+              ? state.quantum
+              : state.echo || 0;
+  }
+
+  function upgCurrencySym(u) {
+    return u.currency === 'energy'
+      ? 'E'
+      : u.currency === 'data'
+        ? 'D'
+        : u.currency === 'network'
+          ? 'N'
+          : u.currency === 'matter'
+            ? 'M'
+            : u.currency === 'quantum'
+              ? 'Q'
+              : 'Ψ';
+  }
+
+  /** Core list: 0 = affordable, 1 = not maxed but can’t pay, 3 = maxed (bottom). */
+  function coreCardSort(tier, sub) {
+    return { tier, sub };
+  }
+
   function renderUpgrades(phase) {
-    let html = '';
     const clickCost = clickUpgCost();
-    const clickCanAfford = state.clickLevel < CLICK_UPG.max && state.energy >= clickCost;
-    html += `<div class="upg-card" data-buy="click">
+    const clickMaxed = state.clickLevel >= CLICK_UPG.max;
+    const clickCanAfford = !clickMaxed && state.energy >= clickCost;
+    const chunks = [];
+    chunks.push({
+      sort: coreCardSort(clickMaxed ? 3 : clickCanAfford ? 0 : 1, clickCost),
+      html: `<div class="upg-card" data-buy="click">
       <canvas class="upg-icon" width="40" height="40" data-icon="click"></canvas>
       <div class="upg-body">
         <div class="upg-title">${CLICK_UPG.title}</div>
@@ -1653,14 +1788,17 @@
         <div class="upg-meta">Lv ${state.clickLevel}/${CLICK_UPG.max} · Next: ${fmtNum(clickCost)} E</div>
       </div>
       <button type="button" class="upg-buy" data-buy="click" ${!clickCanAfford ? 'disabled' : ''}>Buy</button>
-    </div>`;
+    </div>`,
+    });
 
     if (!state.flags.generatorsTab) {
       const i = 0;
       const g = GEN_DEFS[i];
       const cost = genCost(i);
       const can = state.energy >= cost;
-      html += `<div class="upg-card">
+      chunks.push({
+        sort: coreCardSort(can ? 0 : 1, cost),
+        html: `<div class="upg-card">
         <canvas class="upg-icon" width="40" height="40" data-icon="gen0"></canvas>
         <div class="upg-body">
           <div class="upg-title">${g.name} ×${state.genLevels[i]}</div>
@@ -1668,7 +1806,8 @@
           <div class="upg-meta">Next: ${fmtNum(cost)} E</div>
         </div>
         <button type="button" class="gen-buy" data-gen="${i}" ${!can ? 'disabled' : ''}>Buy</button>
-      </div>`;
+      </div>`,
+      });
     }
 
     UPGRADES.forEach((u) => {
@@ -1676,42 +1815,30 @@
       if (phase < u.phase) return;
       const lv = levelOf(u.id);
       const cost = upgCost(u);
-      const cur =
-        u.currency === 'energy'
-          ? state.energy
-          : u.currency === 'data'
-            ? state.data
-            : u.currency === 'network'
-              ? state.network
-              : u.currency === 'matter'
-                ? state.matter
-                : u.currency === 'quantum'
-                  ? state.quantum
-                  : state.echo || 0;
-      const curSym =
-        u.currency === 'energy'
-          ? 'E'
-          : u.currency === 'data'
-            ? 'D'
-            : u.currency === 'network'
-              ? 'N'
-              : u.currency === 'matter'
-                ? 'M'
-                : u.currency === 'quantum'
-                  ? 'Q'
-                  : 'Ψ';
-      const can = lv < u.max && cur >= cost;
-      html += `<div class="upg-card ${lv >= u.max ? 'maxed' : ''}" data-upg="${u.id}">
+      const cur = upgCurrencyAmount(u);
+      const curSym = upgCurrencySym(u);
+      const maxed = lv >= u.max;
+      const can = !maxed && cur >= cost && isFinite(cost);
+      const tier = maxed ? 3 : can ? 0 : 1;
+      chunks.push({
+        sort: coreCardSort(tier, cost),
+        html: `<div class="upg-card ${maxed ? 'maxed' : ''}" data-upg="${u.id}">
         <canvas class="upg-icon" width="40" height="40" data-icon="${u.id}"></canvas>
         <div class="upg-body">
           <div class="upg-title">${u.title}</div>
           <div class="upg-desc">${u.desc}</div>
           <div class="upg-meta">Lv ${lv}/${u.max} · ${fmtNum(cost)} ${curSym}</div>
         </div>
-        <button type="button" class="upg-buy" data-upg="${u.id}" ${!can || lv >= u.max ? 'disabled' : ''}>Buy</button>
-      </div>`;
+        <button type="button" class="upg-buy" data-upg="${u.id}" ${!can || maxed ? 'disabled' : ''}>Buy</button>
+      </div>`,
+      });
     });
-    el.panelUpg.innerHTML = html;
+
+    chunks.sort((a, b) => {
+      if (a.sort.tier !== b.sort.tier) return a.sort.tier - b.sort.tier;
+      return a.sort.sub - b.sort.sub;
+    });
+    el.panelUpg.innerHTML = chunks.map((c) => c.html).join('');
     drawMiniIcons(el.panelUpg);
   }
 
@@ -1907,10 +2034,12 @@
     state.quantumCharge = 0;
     const burst = genProduction() * 120 + state.energy * 0.05;
     state.energy += burst;
+    state.energy = capEconomy(state.energy);
     state.quantum += 1 + Math.floor(Math.log10(Math.max(10, state.energy)));
     state.quantumTotal++;
     const echoGain = 0.42 + 0.15 * Math.sqrt(state.quantumTotal);
     state.echo = (state.echo || 0) + echoGain;
+    clampEconomy();
     sfxBuy();
     toast('Quantum discharge — +' + fmtNum(burst) + ' E · +' + fmtNum(echoGain) + ' Ψ');
     save();
@@ -1949,6 +2078,30 @@
       ensureBackground(phase);
     }
     uiPhaseCached = phase;
+    syncRebirthUi();
+  }
+
+  function syncRebirthUi() {
+    const b = document.getElementById('asc-btn-rebirth');
+    if (!b) return;
+    const ok = canRebirth();
+    b.disabled = !ok;
+    b.title = ok
+      ? 'Reset this run for a permanent production multiplier (keeps achievements & play time).'
+      : 'Reach Phase 6, or ' + fmtNum(REBIRTH_MIN_TE) + ' lifetime Energy, or get near the economy cap.';
+    const h = document.getElementById('asc-rebirth-hint');
+    if (h) {
+      const n = state.rebirthCount || 0;
+      const pct = Math.round((rebirthProductionMult() - 1) * 100);
+      h.textContent =
+        'Rebirths: ' +
+        n +
+        ' · +' +
+        pct +
+        '% production · unlocks at Phase 6+ or ' +
+        fmtNum(REBIRTH_MIN_TE) +
+        ' lifetime E (or near cap). Resets run; keeps achievements & play time.';
+    }
   }
 
   // ═══ INPUT ═══════════════════════════════════════════════
@@ -2084,6 +2237,7 @@
     state.energy += p;
     state.totalEnergyEarned += p;
     collectNetworkDrip();
+    clampEconomy();
     sfxClick();
     el.orbGain.textContent = '+' + fmtNum(clickPower());
     el.orbGain.animate([{ transform: 'scale(1.2)' }, { transform: 'scale(1)' }], { duration: 120 });
@@ -2187,8 +2341,9 @@
     const tePart = Math.min(120000000, Math.floor(te * 22000000));
     const qPart = Math.min(80000000, (state.quantumTotal || 0) * 4000000);
     const echoPart = Math.min(55000000, Math.floor(Math.sqrt(Math.max(0, state.echo || 0) + 1) * 420000));
+    const rebPart = Math.min(25000000, (state.rebirthCount || 0) * 1200000);
     const regPart = state.regions.filter(Boolean).length * 400000;
-    return Math.min(1999999999, Math.floor(p * 240000000 + tePart + qPart + echoPart + regPart));
+    return Math.min(1999999999, Math.floor(p * 240000000 + tePart + qPart + echoPart + rebPart + regPart));
   }
 
   let globalAscLB = [];
@@ -2349,6 +2504,7 @@
     if (phase >= 6) {
       state.quantumCharge = Math.min(100, state.quantumCharge + quantumFillRate() * dt);
     }
+    clampEconomy();
     tryRareEvent();
     if (levelOf('mesh_auto') >= 1 && phase >= 4) {
       doNetPulse({ silent: true });
@@ -2385,6 +2541,9 @@
   });
 
   fullRender();
+
+  const rebirthBtn = document.getElementById('asc-btn-rebirth');
+  if (rebirthBtn) rebirthBtn.addEventListener('click', performRebirth);
 
   setInterval(save, SAVE_INTERVAL);
   window.addEventListener('beforeunload', save);
