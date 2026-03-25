@@ -33,7 +33,12 @@ try {
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
-    auth = firebase.auth();
+    // Auth SDK optional: some pages only load App + Firestore (e.g. leaderboard-only).
+    if (typeof firebase.auth === 'function') {
+      auth = firebase.auth();
+    } else {
+      auth = nkStubAuth();
+    }
     db = firebase.firestore();
     window.__NK_FB_DB = db;
   } else {
