@@ -18,7 +18,7 @@
     <section id="uol-title" class="uol-screen">
       <header class="uol-brand">
         <h1 class="uol-logo">UP OR <span>LOSE</span></h1>
-        <p class="uol-tag">Auto-jump · rising poison · don’t fall</p>
+        <p class="uol-tag">Auto-jump · rising poison · mid-air pickups</p>
       </header>
 
       <div class="uol-podium-wrap">
@@ -42,7 +42,7 @@
       </div>
 
       <button type="button" class="uol-btn uol-btn-main" id="uol-play">Play</button>
-      <p class="uol-keys">← → or A D · P pause · Touch sides on phone</p>
+      <p class="uol-keys">← → or A D · P pause · Touch sides on phone · Fly through pickups</p>
     </section>
 
     <section id="uol-game" class="uol-screen uol-hidden">
@@ -51,6 +51,7 @@
           <div class="uol-hud">
             <span class="uol-hud-h" id="uol-hud-h">0</span>
             <span class="uol-hud-poison" id="uol-hud-poison" title="Clearance above poison">Poison —</span>
+            <span class="uol-hud-buff uol-hidden" id="uol-hud-buff" title="Pickup buffs"></span>
             <div class="uol-hud-actions">
               <button type="button" class="uol-pause-btn" id="uol-pause" aria-pressed="false" aria-label="Pause">Pause</button>
               <span class="uol-hud-best">Best <strong id="uol-hud-best">0</strong></span>
@@ -68,6 +69,13 @@
             <li><span class="uol-swatch" style="background:#ffaa66"></span><span>Orange — breaks after land</span></li>
             <li><span class="uol-swatch" style="background:#66ffaa"></span><span>Mint — big jump</span></li>
             <li><span class="uol-swatch" style="background:#cc88ff"></span><span>Purple — teleport up</span></li>
+          </ul>
+          <p class="uol-legend-rail-title uol-legend-pickups">Pickups</p>
+          <ul class="uol-legend-rail-list uol-legend-pickups-list">
+            <li><span class="uol-swatch uol-swatch-rocket"></span><span>Rocket — huge upward kick</span></li>
+            <li><span class="uol-swatch uol-swatch-ring"></span><span>Ring — solid lift boost</span></li>
+            <li><span class="uol-swatch uol-swatch-cloud"></span><span>Cloud — lighter gravity for a bit</span></li>
+            <li><span class="uol-swatch uol-swatch-repel"></span><span>Aura — poison chases slower + small shove</span></li>
           </ul>
         </aside>
       </div>

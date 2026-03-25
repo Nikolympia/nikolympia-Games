@@ -35,6 +35,14 @@
   /** Auto-jump / boost (upward = negative). Slightly softer than before. */
   const JUMP_V = -686;
   const BOOST_V = -932;
+  /** Mid-air pickups — stronger than mint boost platforms. */
+  const PICKUP_ROCKET_VY = -1220;
+  const PICKUP_LIFT_VY = -880;
+  const PICKUP_FLOAT_GRAVITY_MULT = 0.46;
+  const PICKUP_FLOAT_SEC = 2.75;
+  const PICKUP_REPEL_SEC = 3.55;
+  const PICKUP_REPEL_POISON_MULT = 0.4;
+  const PICKUP_REPEL_NUDGE_PX = 78;
   /** Orange (break) platforms reappear after this many seconds. */
   const BREAK_RESPAWN_SEC = 2.5;
   const POISON_START_OFFSET = 420;
@@ -294,6 +302,37 @@
     o.stop(a.currentTime + 0.09);
   }
 
+  function sfxPickup(freq) {
+    const a = audio();
+    if (!a) return;
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq || 440;
+    g.gain.value = 0.07;
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.12);
+    o.connect(g);
+    g.connect(a.destination);
+    o.start();
+    o.stop(a.currentTime + 0.14);
+  }
+
+  function sfxRocketPickup() {
+    const a = audio();
+    if (!a) return;
+    const o = a.createOscillator();
+    const g = a.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(220, a.currentTime);
+    o.frequency.exponentialRampToValueAtTime(520, a.currentTime + 0.1);
+    g.gain.value = 0.05;
+    g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + 0.18);
+    o.connect(g);
+    g.connect(a.destination);
+    o.start();
+    o.stop(a.currentTime + 0.2);
+  }
+
   function sfxLand() {
     const a = audio();
     if (!a) return;
@@ -365,6 +404,10 @@
 
   let platforms = [];
   let particles = [];
+  /** Mid-air pickups (rocket, lift, float, repel) spawned in vertical gaps. */
+  let powerups = [];
+  let buffFloatUntil = 0;
+  let buffPoisonUntil = 0;
   let player = { x: 0, y: 0, vx: 0, vy: 0 };
   let camY = 0;
   let startFloorY = 0;
@@ -414,6 +457,9 @@
   function seedWorld() {
     platforms = [];
     particles = [];
+    powerups = [];
+    buffFloatUntil = 0;
+    buffPoisonUntil = 0;
     lastPlatId = 0;
     const floorY = CH - 80;
     startFloorY = floorY;
@@ -603,7 +649,42 @@
       }
     }
 
+    maybeSpawnPowerup(prevBottomY, platY, initial);
     return platY;
+  }
+
+  /**
+   * Floating pickups between two platform rows — optional rescue / tempo swing.
+   * Kept sparse so they feel special; scales slightly with difficulty.
+   */
+  function maybeSpawnPowerup(prevBottomY, platY, initial) {
+    if (initial) return;
+    if (heightPx < 300) return;
+    if (powerups.length >= 5) return;
+    const d = difficulty();
+    if (Math.random() > 0.17 + d * 0.07) return;
+    const midY = (prevBottomY + platY) / 2 - 14;
+    if (powerups.some((q) => Math.abs(q.y - midY) < 48)) return;
+
+    const r = Math.random();
+    let kind = 'rocket';
+    if (r < 0.28) kind = 'float';
+    else if (r < 0.52) kind = 'lift';
+    else if (r < 0.7) kind = 'repel';
+    else kind = 'rocket';
+
+    const w = 28;
+    const h = 30;
+    const pad = 24;
+    const x = pad + Math.random() * (CW - pad * 2 - w);
+    powerups.push({
+      x,
+      y: midY,
+      w,
+      h,
+      kind,
+      phase: Math.random() * Math.PI * 2,
+    });
   }
 
   function extendWorld() {
@@ -614,6 +695,7 @@
       topY = spawnLayer(topY, false);
     }
     platforms = platforms.filter((p) => p.y < camY + CH + 240);
+    powerups = powerups.filter((p) => p.y < camY + CH + 200);
   }
 
   function updateMoving(dt, tWall) {
@@ -691,6 +773,139 @@
     return false;
   }
 
+  function rectsOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  function tryCollectPowerups() {
+    const pad = 3;
+    for (let i = powerups.length - 1; i >= 0; i--) {
+      const pu = powerups[i];
+      if (
+        rectsOverlap(
+          player.x - pad,
+          player.y - pad,
+          PW + pad * 2,
+          PH + pad * 2,
+          pu.x,
+          pu.y,
+          pu.w,
+          pu.h
+        )
+      ) {
+        applyPowerup(pu.kind);
+        powerups.splice(i, 1);
+      }
+    }
+  }
+
+  function applyPowerup(kind) {
+    const cx = player.x + PW / 2;
+    const cy = player.y + PH * 0.45;
+    if (kind === 'rocket') {
+      player.vy = Math.min(player.vy, PICKUP_ROCKET_VY);
+      spawnParticles(cx, cy + 8, 26, '#ff7744');
+      spawnParticles(cx, cy + 18, 10, '#ffcc66');
+      sfxRocketPickup();
+    } else if (kind === 'lift') {
+      player.vy = Math.min(player.vy, PICKUP_LIFT_VY);
+      spawnParticles(cx, cy + 6, 16, '#66ddff');
+      sfxPickup(560);
+    } else if (kind === 'float') {
+      buffFloatUntil = runTime + PICKUP_FLOAT_SEC;
+      spawnParticles(cx, cy, 14, '#aac8ff');
+      sfxPickup(400);
+    } else if (kind === 'repel') {
+      buffPoisonUntil = runTime + PICKUP_REPEL_SEC;
+      poisonTopY -= PICKUP_REPEL_NUDGE_PX;
+      spawnParticles(cx, cy + 4, 12, '#5fdf8a');
+      for (let k = 0; k < 8; k++) {
+        particles.push({
+          x: (k / 8) * CW + 20,
+          y: poisonTopY + 20,
+          vx: (Math.random() - 0.5) * 100,
+          vy: 40 + Math.random() * 80,
+          life: 0.4 + Math.random() * 0.2,
+          col: 'rgba(95,223,138,0.9)',
+        });
+      }
+      sfxPickup(300);
+    }
+  }
+
+  function drawPowerup(pu, t) {
+    const pulse = 1 + Math.sin(t * 4.2 + pu.phase) * 0.07;
+    const ox = pu.x + (pu.w * (1 - pulse)) / 2;
+    const oy = pu.y + (pu.h * (1 - pulse)) / 2;
+    const w = pu.w * pulse;
+    const h = pu.h * pulse;
+    const cx = ox + w / 2;
+    const cy = oy + h / 2;
+    ctx.save();
+    if (pu.kind === 'rocket') {
+      ctx.fillStyle = '#ff5533';
+      ctx.strokeStyle = 'rgba(255,200,120,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, oy + 4);
+      ctx.lineTo(ox + w - 6, cy);
+      ctx.lineTo(cx, oy + h - 4);
+      ctx.lineTo(ox + 6, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ffcc44';
+      ctx.beginPath();
+      ctx.moveTo(cx, oy + h - 2);
+      ctx.lineTo(cx - 5, oy + h + 8);
+      ctx.lineTo(cx + 5, oy + h + 8);
+      ctx.closePath();
+      ctx.fill();
+    } else if (pu.kind === 'lift') {
+      ctx.strokeStyle = '#66eeff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, w * 0.38, 0.35, Math.PI * 2 - 0.35);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(100,220,255,0.35)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, w * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (pu.kind === 'float') {
+      ctx.fillStyle = 'rgba(180,210,255,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(cx - 4, cy, w * 0.35, h * 0.28, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 6, cy - 2, w * 0.32, h * 0.24, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (pu.kind === 'repel') {
+      ctx.strokeStyle = '#5fdf8a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 2, w * 0.42, -Math.PI * 1.15, -0.1);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(95,223,138,0.25)';
+      ctx.beginPath();
+      ctx.arc(cx, cy + 2, w * 0.32, -Math.PI * 1.1, -0.15);
+      ctx.lineTo(cx - 2, cy + h * 0.35);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function updateHudBuffs() {
+    const el = document.getElementById('uol-hud-buff');
+    if (!el) return;
+    const parts = [];
+    if (runTime < buffFloatUntil) parts.push('Float');
+    if (runTime < buffPoisonUntil) parts.push('Repel');
+    const t = parts.join(' · ');
+    el.textContent = t;
+    el.classList.toggle('uol-hidden', !t);
+  }
+
   function spawnParticles(x, y, n, col) {
     for (let i = 0; i < n; i++) {
       particles.push({
@@ -730,7 +945,8 @@
 
     const d = difficulty();
     lastD = d;
-    const poisonRise = POISON_RISE_BASE + d * POISON_RISE_PER_D + heightPx * POISON_RISE_PER_HEIGHT;
+    let poisonRise = POISON_RISE_BASE + d * POISON_RISE_PER_D + heightPx * POISON_RISE_PER_HEIGHT;
+    if (runTime < buffPoisonUntil) poisonRise *= PICKUP_REPEL_POISON_MULT;
     poisonTopY -= poisonRise * dt;
 
     updateMoving(dt, runTime);
@@ -769,7 +985,9 @@
     else player.vx *= onGround ? 0.82 : 0.94;
     player.vx = Math.max(-MAX_RUN, Math.min(MAX_RUN, player.vx));
 
-    player.vy += GRAVITY * dt;
+    let gEff = GRAVITY;
+    if (runTime < buffFloatUntil) gEff *= PICKUP_FLOAT_GRAVITY_MULT;
+    player.vy += gEff * dt;
     const wasVy = player.vy;
     player.x += player.vx * dt;
     player.y += player.vy * dt;
@@ -782,6 +1000,8 @@
       player.x = CW - 8 - PW;
       player.vx *= -0.35;
     }
+
+    tryCollectPowerups();
 
     if (wasVy > 0) {
       tryLand(player.y);
@@ -859,6 +1079,10 @@
       ctx.stroke();
     }
 
+    for (const pu of powerups) {
+      drawPowerup(pu, runTime);
+    }
+
     if (poisonTopY < camY + CH + 200) {
       const gPoison = ctx.createLinearGradient(0, poisonTopY - 40, 0, poisonTopY + 280);
       gPoison.addColorStop(0, 'rgba(95, 223, 138, 0.08)');
@@ -908,6 +1132,8 @@
       else if (clearPx > 0) hp.textContent = 'Poison ' + clearPx + ' px — danger';
       else hp.textContent = 'Poison — too close!';
     }
+
+    updateHudBuffs();
   }
 
   function roundRect(c, x, y, w, h, r) {

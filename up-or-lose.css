@@ -343,6 +343,12 @@ html, body {
     font-size: 0.68rem;
   }
 
+  .uol-legend-rail-title.uol-legend-pickups {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
   .uol-legend-rail-list {
     display: contents;
   }
@@ -425,6 +431,45 @@ html, body {
   letter-spacing: 0.04em;
   color: #5fdf8a;
   text-shadow: 0 0 12px rgba(95, 223, 138, 0.35);
+}
+
+.uol-hud-buff {
+  flex-shrink: 0;
+  max-width: 6.5rem;
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffcc66;
+  line-height: 1.2;
+  text-shadow: 0 0 10px rgba(255, 200, 102, 0.35);
+}
+
+.uol-legend-rail-title.uol-legend-pickups {
+  margin-top: 1rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.uol-swatch-rocket {
+  background: linear-gradient(145deg, #ff4422, #ff9944);
+}
+
+.uol-swatch-ring {
+  background: rgba(30, 50, 70, 0.9);
+  border: 2px solid #66ddff;
+  box-shadow: 0 0 8px rgba(102, 221, 255, 0.35);
+}
+
+.uol-swatch-cloud {
+  background: linear-gradient(180deg, #d0e0ff, #88a8dd);
+}
+
+.uol-swatch-repel {
+  background: rgba(20, 50, 35, 0.95);
+  border: 2px solid #5fdf8a;
+  box-shadow: 0 0 8px rgba(95, 223, 138, 0.3);
 }
 
 .uol-hud-actions {
@@ -573,7 +618,7 @@ html, body {
   .uol-hud {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
     gap: 0.35rem 0.45rem;
     align-items: center;
     padding: 0 0.1rem;
@@ -599,6 +644,13 @@ html, body {
     text-align: center;
     font-size: clamp(0.58rem, 2.8vw, 0.68rem);
     line-height: 1.25;
+  }
+
+  .uol-hud-buff {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    max-width: none;
+    font-size: clamp(0.52rem, 2.5vw, 0.62rem);
   }
 
   .uol-pause-btn {
