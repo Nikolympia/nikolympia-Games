@@ -208,6 +208,7 @@ html, body {
 .res-item.net .res-val { color: #aa66ff; }
 .res-item.matter .res-val { color: #ffaa44; }
 .res-item.quantum .res-val { color: #ff66dd; }
+.res-item.echo .res-val { color: #e8cc66; }
 
 /* Objective */
 .asc-objective {

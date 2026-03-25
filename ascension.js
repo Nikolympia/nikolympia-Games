@@ -18,6 +18,8 @@
   const OFFLINE_CAP = 8 * 3600;
   const TICK_MS = 100;
   const SAVE_INTERVAL = 8000;
+  /** Endgame phases (was 6; 7–9 add Echo + deep upgrades). */
+  const PHASE_CAP = 9;
 
   // ═══ NUMBER FORMAT ═══════════════════════════════════════
   const SUFFIX = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
@@ -81,6 +83,9 @@
     if (p.includes('glitch') || p.includes('corrupt')) return 4;
     if (p.includes('space') || p.includes('planet')) return 5;
     if (p.includes('abstract') || p.includes('surreal')) return 6;
+    if (p.includes('prism') || p.includes('accretion') || p.includes('megastructure')) return 7;
+    if (p.includes('timeline') || p.includes('thread') || p.includes('recursive')) return 8;
+    if (p.includes('consensus') || p.includes('finale') || p.includes('sacred')) return 9;
     if (p.includes('map') || p.includes('network')) return 3;
     if (p.includes('machine') || p.includes('generator')) return 2;
     return 1;
@@ -195,7 +200,7 @@
           ctx.fill();
         }
       );
-    } else {
+    } else if (phase === 6) {
       grd.addColorStop(0, '#0a0030');
       grd.addColorStop(0.5, '#300018');
       grd.addColorStop(1, '#001818');
@@ -209,6 +214,57 @@
         ctx.lineWidth = 2;
         ctx.strokeRect(-120 - i * 4, -20, 80 + i * 8, 40 + i * 3);
         ctx.restore();
+      }
+    } else if (phase === 7) {
+      grd.addColorStop(0, '#0a0820');
+      grd.addColorStop(0.5, '#201040');
+      grd.addColorStop(1, '#082030');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+      const cx = w * 0.5;
+      const cy = h * 0.42;
+      const rg = ctx.createRadialGradient(cx, cy, 0, cx, cy, h * 0.55);
+      rg.addColorStop(0, 'rgba(180,120,255,0.5)');
+      rg.addColorStop(0.35, 'rgba(0,255,200,0.12)');
+      rg.addColorStop(1, 'transparent');
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 18; i++) {
+        ctx.strokeStyle = `hsla(${260 + i * 8}, 70%, 65%, ${0.15 + (i % 3) * 0.08})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 40 + i * 14, 0, Math.PI * 1.7);
+        ctx.stroke();
+      }
+    } else if (phase === 8) {
+      grd.addColorStop(0, '#101008');
+      grd.addColorStop(1, '#201a30');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 60; i++) {
+        const x = (i * 97) % w;
+        const y = (i * 53 + Math.sin(i) * 20) % h;
+        ctx.strokeStyle = `rgba(255,220,120,${0.08 + (i % 5) * 0.04})`;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 40, y + 24);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,200,100,0.15)';
+      ctx.beginPath();
+      ctx.arc(w * 0.5, h * 0.5, 50, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      grd.addColorStop(0, '#f8f6ff');
+      grd.addColorStop(0.4, '#e8e4f8');
+      grd.addColorStop(1, '#c8d8f0');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(80,100,180,0.25)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 12; i++) {
+        const s = 30 + i * 18;
+        ctx.strokeRect(w / 2 - s / 2, h / 2 - s / 2, s, s);
       }
     }
   }
@@ -228,12 +284,13 @@
       peakEnergy: 0,
       clickLevel: 0,
       clickMult: 1,
-      genLevels: [0, 0, 0, 0, 0, 0],
+      genLevels: [0, 0, 0, 0, 0, 0, 0, 0],
       upgLevels: {},
       regions: [false, false, false, false, false, false, false, false],
-      planets: [0, 0, 0, 0, 0],
+      planets: [0, 0, 0, 0, 0, 0, 0, 0],
       quantumCharge: 0,
       quantumTotal: 0,
+      echo: 0,
       achievements: {},
       storySeen: {},
       lastTs: Date.now(),
@@ -266,13 +323,15 @@
     { id: 'dyson', name: 'Dyson wedge', desc: 'Serious power', base: 100, cost: 8000, mult: 1.24 },
     { id: 'sing', name: 'Singularity tap', desc: 'Bends efficiency', base: 600, cost: 65000, mult: 1.26 },
     { id: 'void', name: 'Void siphon', desc: 'Endgame throughput', base: 3500, cost: 5e5, mult: 1.28 },
+    { id: 'prism', name: 'Tachyonic prism', desc: 'Relativistic harvest — steep cost curve', base: 22000, cost: 4.5e6, mult: 1.29 },
+    { id: 'omega', name: 'Omega lattice cell', desc: 'Pre–consensus scale power', base: 140000, cost: 3.5e8, mult: 1.31 },
   ];
 
   /** Per-generator hand-tuning (Generators tab) — only this row’s output, paid in Energy */
   const GEN_TUNE = {
-    max: 20,
+    max: 22,
     bonusPerLv: 0.11,
-    costBase: [80, 520, 3800, 28000, 2.2e5, 1.6e6],
+    costBase: [80, 520, 3800, 28000, 2.2e5, 1.6e6, 1.2e7, 8.5e7],
     costMult: 1.38,
   };
 
@@ -439,6 +498,77 @@
       currency: 'matter',
       phase: 6,
     },
+    {
+      id: 'harmonic',
+      title: 'Quantum resonator',
+      desc: '+8% Quantum meter fill rate per level. Paid in Quantum (Q) from discharges.',
+      max: 35,
+      costBase: 5,
+      costMult: 1.26,
+      currency: 'quantum',
+      phase: 6,
+    },
+    {
+      id: 'cascade',
+      title: 'Entropic cascade',
+      desc: '+10% generator Energy/s per level (stacks with Entropy sink & Reality lattice).',
+      max: 28,
+      costBase: 2.8e18,
+      costMult: 2.04,
+      currency: 'energy',
+      phase: 7,
+    },
+    {
+      id: 'echo_well',
+      title: 'Echo condenser',
+      desc:
+        'Lv 1 unlocks Echo (Ψ) passive income; further levels multiply Ψ/s (stronger with more Quantum discharges). Paid in Matter.',
+      max: 25,
+      costBase: 3.8e12,
+      costMult: 1.84,
+      currency: 'matter',
+      phase: 7,
+    },
+    {
+      id: 'lattice',
+      title: 'Reality lattice',
+      desc: '+14% generator Energy/s per level (multiplies with cascade). Paid in Echo (Ψ).',
+      max: 22,
+      costBase: 9,
+      costMult: 1.41,
+      currency: 'echo',
+      phase: 8,
+    },
+    {
+      id: 'telemetry',
+      title: 'Deep telemetry',
+      desc: '+25% Data (D)/s per level. Paid in Echo (Ψ).',
+      max: 30,
+      costBase: 24,
+      costMult: 1.35,
+      currency: 'echo',
+      phase: 8,
+    },
+    {
+      id: 'consensus',
+      title: 'Final consensus',
+      desc: '+6% passive E/D/N/M/Ψ rates per level. Paid in Echo (Ψ).',
+      max: 15,
+      costBase: 110,
+      costMult: 1.65,
+      currency: 'echo',
+      phase: 9,
+    },
+    {
+      id: 'witness',
+      title: 'Observer node',
+      desc: '+12% COLLECT tap power per level. Paid in Echo (Ψ).',
+      max: 40,
+      costBase: 32,
+      costMult: 1.27,
+      currency: 'echo',
+      phase: 9,
+    },
   ];
 
   const REGION_NAMES = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta'];
@@ -451,6 +581,9 @@
     { name: 'Nebula Prime', baseCost: 2e9, mult: 1.45 },
     { name: 'Void Horizon', baseCost: 1e11, mult: 1.5 },
     { name: 'Omega Shell', baseCost: 5e12, mult: 1.55 },
+    { name: 'Cygnus gate', baseCost: 2.5e14, mult: 1.58 },
+    { name: 'Sagittarius rim', baseCost: 1.1e16, mult: 1.62 },
+    { name: 'Universe seed', baseCost: 7e17, mult: 1.67 },
   ];
 
   function upgLv(s, id) {
@@ -534,7 +667,7 @@
       id: 'full_roster',
       name: 'Everyone is here',
       flavor: 'You hired the whole stack. HR sends regards.',
-      test: (s) => s.genLevels.length >= 6 && s.genLevels.every((n) => n >= 1),
+      test: (s) => s.genLevels.length >= 8 && s.genLevels.every((n) => n >= 1),
     },
     {
       id: 'entropy_fan',
@@ -547,6 +680,36 @@
       name: 'Knob twiddler',
       flavor: 'Someone actually read the manual on one generator.',
       test: (s) => Object.keys(s.upgLevels || {}).some((k) => k.startsWith('gentune_') && s.upgLevels[k] >= 1),
+    },
+    {
+      id: 'echo_drop',
+      name: 'First echo',
+      flavor: 'The void answered back with a second shadow currency.',
+      test: (s) => (s.echo || 0) >= 0.35,
+    },
+    {
+      id: 'echo_stream',
+      name: 'Resonant bore',
+      flavor: 'Echo condenser online — the timeline leaks into your ledger.',
+      test: (s) => upgLv(s, 'echo_well') >= 5,
+    },
+    {
+      id: 'lattice_weaver',
+      name: 'Lattice weaver',
+      flavor: 'Reality lattice — you are knitting spacetime like a scarf.',
+      test: (s) => upgLv(s, 'lattice') >= 8,
+    },
+    {
+      id: 'witness_me',
+      name: 'Witness me',
+      flavor: 'Observer nodes: the universe checks that you are still watching.',
+      test: (s) => upgLv(s, 'witness') >= 12,
+    },
+    {
+      id: 'protocol_end',
+      name: 'Protocol crown',
+      flavor: 'Phase 9 — the briefing was always a ladder, not a ceiling.',
+      test: (s) => (s.phaseMax || 1) >= 9,
     },
   ];
 
@@ -564,6 +727,36 @@
     { id: 'hidden', phase: 4, text: '…they are watching the watchers…', hidden: true },
     { id: 'space', phase: 5, text: 'Gravity is a suggestion. Matter is inventory.' },
     { id: 'end', phase: 6, text: 'Reality is a parameter. I am tuning it.' },
+    {
+      id: 'echo_layer',
+      phase: 7,
+      text: 'Quantum discharges leave ripples — Echo (Ψ). I stack them like sediment.',
+    },
+    {
+      id: 'cascade_note',
+      phase: 7,
+      text: 'Entropic cascade: every watt I make teaches the next watt how to be lazier… and stronger.',
+    },
+    {
+      id: 'lattice_whisper',
+      phase: 8,
+      text: 'The lattice is not built; it is negotiated between timelines that disagree on physics.',
+    },
+    {
+      id: 'telemetry_ghost',
+      phase: 8,
+      text: 'Deep telemetry hears data before it is generated. The mesh files patents on déjà vu.',
+    },
+    {
+      id: 'consensus_line',
+      phase: 9,
+      text: 'Final consensus: the universe votes on whether you exist. Spoiler — you are winning by a margin of one.',
+    },
+    {
+      id: 'witness_line',
+      phase: 9,
+      text: 'Observer nodes complete the loop. The core was never a button; it was a mirror.',
+    },
   ];
 
   // ═══ PHASE ═══════════════════════════════════════════════
@@ -581,13 +774,17 @@
     if (p >= 3 && (regN >= 3 || levelOf('mesh') >= 1 || E >= 5e13)) p = 4;
     if (p >= 4 && (state.planets.some((n) => n > 0) || state.matter >= 250 || E >= 1e16)) p = 5;
     if (p >= 5 && (state.quantumTotal >= 1 || levelOf('qseed') >= 1 || E >= 1e21)) p = 6;
-    return Math.min(6, p);
+    if (p >= 6 && (state.quantumTotal >= 36 || levelOf('harmonic') >= 6 || E >= 4e23 || te >= 3e29)) p = 7;
+    if (p >= 7 && ((state.echo || 0) >= 20 || levelOf('echo_well') >= 4 || te >= 2e31 || E >= 2e25)) p = 8;
+    if (p >= 8 && (state.quantumTotal >= 200 || levelOf('lattice') >= 6 || (state.echo || 0) >= 320 || te >= 5e33))
+      p = 9;
+    return Math.min(PHASE_CAP, p);
   }
 
   function syncPhaseMax() {
     const raw = computePhaseFromProgress();
     const cur = typeof state.phaseMax === 'number' && state.phaseMax >= 1 ? state.phaseMax : 1;
-    state.phaseMax = Math.min(6, Math.max(cur, raw));
+    state.phaseMax = Math.min(PHASE_CAP, Math.max(cur, raw));
   }
 
   /** Permanent high-water phase for UI, tabs, and story gates. */
@@ -600,19 +797,21 @@
   function genProduction() {
     let total = 0;
     const syn = 1 + 0.25 * levelOf('entropy');
+    const cascade = Math.pow(1.1, levelOf('cascade'));
+    const lattice = Math.pow(1.14, levelOf('lattice'));
     GEN_DEFS.forEach((g, i) => {
       const lv = state.genLevels[i];
       if (lv <= 0) return;
       total += g.base * lv * Math.pow(1.12, lv) * syn * genTuneMult(i);
     });
     const rare = Date.now() < state.rareBoostUntil ? 1.35 : 1;
-    return total * rare;
+    return total * rare * cascade * lattice;
   }
 
   function dataPerSecond() {
     if (computePhase() < 2 || levelOf('cache') <= 0) return 0;
     const eps = genProduction();
-    return eps * 0.0022 * levelOf('cache');
+    return eps * 0.0022 * levelOf('cache') * Math.pow(1.25, levelOf('telemetry'));
   }
 
   function networkPerSecond() {
@@ -720,7 +919,7 @@
   function quantumFillRate() {
     if (computePhase() < 6) return 0;
     const base = 0.08 + genProduction() * 1e-15;
-    return base * (1 + 0.35 * levelOf('qseed'));
+    return base * (1 + 0.35 * levelOf('qseed')) * (1 + 0.08 * levelOf('harmonic'));
   }
 
   function clickPower() {
@@ -730,12 +929,26 @@
     const cortex = 1 + 0.11 * levelOf('cortex');
     const reflex = 1 + 0.08 * levelOf('reflex');
     const overclock = 1 + 0.07 * levelOf('overclock');
+    const witness = Math.pow(1.12, levelOf('witness'));
     const rare = Date.now() < state.rareBoostUntil ? 1.25 : 1;
-    return base * syn * cortex * reflex * overclock * rare;
+    return base * syn * cortex * reflex * overclock * witness * rare;
   }
 
   function levelOf(id) {
     return state.upgLevels[id] || 0;
+  }
+
+  function consensusMult() {
+    return Math.pow(1.06, levelOf('consensus'));
+  }
+
+  function echoPerSecond() {
+    if (computePhase() < 7) return 0;
+    const ew = levelOf('echo_well');
+    if (ew < 1) return 0;
+    const qScale = 1 + Math.log10(10 + Math.max(0, state.quantumTotal)) * 0.14;
+    const lat = 1 + 0.025 * levelOf('lattice');
+    return ew * 0.105 * qScale * lat;
   }
 
   /** Book-style checklist: `show` gates visibility; `done` marks the box (auto). */
@@ -842,6 +1055,42 @@
       label: 'Perform a Quantum discharge',
       show: (s, p) => p >= 6,
       done: (s) => s.quantumTotal >= 1,
+    },
+    {
+      id: 'phase_7',
+      label: 'Reach Phase 7: more Quantum discharges, Harmonic upgrades, huge Energy, or lifetime earnings',
+      show: (s, p) => p >= 6,
+      done: (s, p) => p >= 7,
+    },
+    {
+      id: 'echo_condenser',
+      label: 'Buy Echo condenser (Core) — unlocks Echo (Ψ) passive from Phase 7',
+      show: (s, p) => p >= 7,
+      done: (s) => levelOf('echo_well') >= 1,
+    },
+    {
+      id: 'phase_8',
+      label: 'Reach Phase 8: stack Echo, Lattice, Quantum total, or push lifetime earnings further',
+      show: (s, p) => p >= 7,
+      done: (s, p) => p >= 8,
+    },
+    {
+      id: 'colonize_deep',
+      label: 'Colonize a late Space world (Cygnus gate or beyond) for Matter scaling',
+      show: (s, p) => p >= 7,
+      done: (s) => (s.planets && s.planets[5] >= 1) || (s.planets && s.planets[6] >= 1) || (s.planets && s.planets[7] >= 1),
+    },
+    {
+      id: 'phase_9',
+      label: 'Reach Phase 9: max out consensus path — Quantum, Echo, Lattice, or absurd totals',
+      show: (s, p) => p >= 8,
+      done: (s, p) => p >= 9,
+    },
+    {
+      id: 'consensus_once',
+      label: 'Buy Final consensus once (Core, Phase 9) — multiplies all passive rates',
+      show: (s, p) => p >= 9,
+      done: (s) => levelOf('consensus') >= 1,
     },
   ];
 
@@ -1022,7 +1271,7 @@
       achievements: { ...d.achievements, ...(o.achievements || {}) },
       storySeen: { ...d.storySeen, ...(o.storySeen || {}) },
       phaseMax:
-        typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(6, o.phaseMax) : d.phaseMax,
+        typeof o.phaseMax === 'number' && o.phaseMax >= 1 ? Math.min(PHASE_CAP, o.phaseMax) : d.phaseMax,
       lbBestScore: Math.max(0, parseInt(o.lbBestScore, 10) || 0),
       lbName: String(o.lbName != null ? o.lbName : d.lbName).slice(0, 24),
       netPulseReadyUntil: typeof o.netPulseReadyUntil === 'number' ? o.netPulseReadyUntil : 0,
@@ -1031,7 +1280,12 @@
     if (state.genLevels.length < GEN_DEFS.length) {
       while (state.genLevels.length < GEN_DEFS.length) state.genLevels.push(0);
     }
-    state.phaseMax = Math.min(6, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
+    if (!state.planets || state.planets.length < PLANET_DEFS.length) {
+      state.planets = Array.isArray(state.planets) ? state.planets.slice() : d.planets.slice();
+      while (state.planets.length < PLANET_DEFS.length) state.planets.push(0);
+    }
+    if (typeof state.echo !== 'number' || !isFinite(state.echo)) state.echo = 0;
+    state.phaseMax = Math.min(PHASE_CAP, Math.max(state.phaseMax || 1, computePhaseFromProgress()));
     migrateProgressiveFlags();
   }
 
@@ -1089,12 +1343,14 @@
     const now = Date.now();
     const dt = Math.min(OFFLINE_CAP, Math.max(0, (now - state.lastTs) / 1000));
     if (dt < 1) return 0;
+    const cm = consensusMult();
     const e = genProduction();
-    state.energy += e * dt;
-    state.totalEnergyEarned += e * dt;
-    state.data += dataPerSecond() * dt;
-    state.network += networkPerSecond() * dt;
-    state.matter += matterPerSecond() * dt;
+    state.energy += e * dt * cm;
+    state.totalEnergyEarned += e * dt * cm;
+    state.data += dataPerSecond() * dt * cm;
+    state.network += networkPerSecond() * dt * cm;
+    state.matter += matterPerSecond() * dt * cm;
+    if (computePhase() >= 7) state.echo = (state.echo || 0) + echoPerSecond() * dt * cm;
     if (computePhase() >= 6) {
       state.quantumCharge = Math.min(100, state.quantumCharge + quantumFillRate() * dt);
     }
@@ -1168,6 +1424,9 @@
     'glitching interface, corrupted UI, red warnings, distorted digital visuals',
     'outer space scene with planets, stars, cosmic energy, vibrant neon colors',
     'abstract reality, geometric neon shapes, surreal cosmic patterns',
+    'prismatic megastructure over glowing accretion disk, violet cyan gold, cosmic sci-fi vista',
+    'infinite recursive timelines golden threads converging, echo resonance abstract void',
+    'white void finale consensus lattice, minimal sacred geometry, soft bloom light',
   ];
 
   async function ensureBackground(phase) {
@@ -1223,6 +1482,9 @@
     }
     if (phase >= 6 || state.quantum > 0 || state.quantumTotal > 0) {
       rows.push({ k: 'quantum', name: 'Quantum', val: state.quantum, cls: 'quantum' });
+    }
+    if (phase >= 7 || (state.echo || 0) > 0 || levelOf('echo_well') >= 1) {
+      rows.push({ k: 'echo', name: 'Echo', val: state.echo || 0, cls: 'echo' });
     }
     return rows;
   }
@@ -1337,7 +1599,21 @@
         'Then the meter fills passively; Discharge at 100% for huge Energy + Quantum. Buy Quantum seed on Core to fill faster.'
       );
     }
-    return 'Maximize Quantum seeds, discharge often, and push every currency higher.';
+    if (phase < 7) {
+      return (
+        'Phase 7: keep discharging Quantum, buy Quantum resonator (Q), push Energy toward ~4e23+, or scale lifetime earnings — Echo (Ψ) appears on discharges; Echo condenser (Matter) unlocks passive Ψ/s.'
+      );
+    }
+    if (levelOf('echo_well') < 1) {
+      return 'Buy Echo condenser on Core (Matter) — unlocks Echo (Ψ) as a real passive stream, not just discharge sparks.';
+    }
+    if (phase < 8) {
+      return 'Phase 8: spend Ψ on Reality lattice & Deep telemetry, grow Quantum total (~200+ discharges worth of progress), or farm Echo toward ~320+.';
+    }
+    if (phase < 9) {
+      return 'Phase 9: max Lattice, stack Echo, push Quantum total and lifetime Energy earned into the 1e34+ range — then buy Final consensus & Observer node for compounding.';
+    }
+    return 'Endgame: level Final consensus (Ψ) for global passive mult, Observer node for taps, colonize Universe seed, and chase achievements / leaderboard rating.';
   }
 
   function renderObjective(phase) {
@@ -1407,9 +1683,23 @@
             ? state.data
             : u.currency === 'network'
               ? state.network
-              : state.matter;
+              : u.currency === 'matter'
+                ? state.matter
+                : u.currency === 'quantum'
+                  ? state.quantum
+                  : state.echo || 0;
       const curSym =
-        u.currency === 'energy' ? 'E' : u.currency === 'data' ? 'D' : u.currency === 'network' ? 'N' : 'M';
+        u.currency === 'energy'
+          ? 'E'
+          : u.currency === 'data'
+            ? 'D'
+            : u.currency === 'network'
+              ? 'N'
+              : u.currency === 'matter'
+                ? 'M'
+                : u.currency === 'quantum'
+                  ? 'Q'
+                  : 'Ψ';
       const can = lv < u.max && cur >= cost;
       html += `<div class="upg-card ${lv >= u.max ? 'maxed' : ''}" data-upg="${u.id}">
         <canvas class="upg-icon" width="40" height="40" data-icon="${u.id}"></canvas>
@@ -1530,9 +1820,9 @@
 
   function renderQuantum() {
     el.panelQuantum.innerHTML = `
-      <p class="upg-desc"><strong>How you reach Phase 6:</strong> from Phase 5, bank <strong>1e21 Energy</strong> — that unlocks this tab. The quantum meter then fills from your production (faster with <em>Quantum seed</em> on Core). Tap <strong>Discharge</strong> at 100% for a massive Energy spike and Quantum currency. (After you are in Phase 6, discharges and Quantum seed also keep your phase pegged.)</p>
+      <p class="upg-desc"><strong>How you reach Phase 6:</strong> from Phase 5, bank <strong>1e21 Energy</strong> — that unlocks this tab. The quantum meter then fills from your production (faster with <em>Quantum seed</em> &amp; <em>Quantum resonator</em> on Core). Tap <strong>Discharge</strong> at 100% for a massive Energy spike, Quantum (Q), and <strong>Echo (Ψ)</strong>. Phase 7+ turns Ψ into its own economy via <em>Echo condenser</em>.</p>
       <div class="quantum-meter"><div class="quantum-fill" id="q-fill"></div></div>
-      <p class="upg-meta">Fill rate scales with production (faster with Quantum seed) · Total discharges: ${state.quantumTotal}</p>
+      <p class="upg-meta">Fill rate scales with production (Quantum seed, resonator) · Discharges: ${state.quantumTotal} · Echo bank: ${fmtNum(state.echo || 0)} Ψ</p>
       <button type="button" class="q-btn" id="btn-discharge" ${state.quantumCharge < 100 ? 'disabled' : ''}>Discharge</button>
     `;
     document.getElementById('q-fill').style.width = state.quantumCharge + '%';
@@ -1570,7 +1860,11 @@
             ? state.data
             : u.currency === 'network'
               ? state.network
-              : state.matter;
+              : u.currency === 'matter'
+                ? state.matter
+                : u.currency === 'quantum'
+                  ? state.quantum
+                  : state.echo || 0;
       btn.disabled = cur < cost;
     });
 
@@ -1615,8 +1909,10 @@
     state.energy += burst;
     state.quantum += 1 + Math.floor(Math.log10(Math.max(10, state.energy)));
     state.quantumTotal++;
+    const echoGain = 0.42 + 0.15 * Math.sqrt(state.quantumTotal);
+    state.echo = (state.echo || 0) + echoGain;
     sfxBuy();
-    toast('Quantum discharge — +' + fmtNum(burst) + ' Energy');
+    toast('Quantum discharge — +' + fmtNum(burst) + ' E · +' + fmtNum(echoGain) + ' Ψ');
     save();
     fullRender();
   }
@@ -1697,12 +1993,18 @@
               ? state.data
               : def.currency === 'network'
                 ? state.network
-                : state.matter;
+                : def.currency === 'matter'
+                  ? state.matter
+                  : def.currency === 'quantum'
+                    ? state.quantum
+                    : state.echo || 0;
         if (cur < cost) return;
         if (def.currency === 'energy') state.energy -= cost;
         else if (def.currency === 'data') state.data -= cost;
         else if (def.currency === 'network') state.network -= cost;
-        else state.matter -= cost;
+        else if (def.currency === 'matter') state.matter -= cost;
+        else if (def.currency === 'quantum') state.quantum -= cost;
+        else state.echo = (state.echo || 0) - cost;
         state.upgLevels[id] = lv + 1;
         sfxBuy();
         if (id === 'mesh_auto' && lv + 1 === 1) {
@@ -1884,8 +2186,9 @@
     const te = Math.log10(Math.max(10, state.totalEnergyEarned));
     const tePart = Math.min(120000000, Math.floor(te * 22000000));
     const qPart = Math.min(80000000, (state.quantumTotal || 0) * 4000000);
+    const echoPart = Math.min(55000000, Math.floor(Math.sqrt(Math.max(0, state.echo || 0) + 1) * 420000));
     const regPart = state.regions.filter(Boolean).length * 400000;
-    return Math.min(1999999999, Math.floor(p * 240000000 + tePart + qPart + regPart));
+    return Math.min(1999999999, Math.floor(p * 240000000 + tePart + qPart + echoPart + regPart));
   }
 
   let globalAscLB = [];
@@ -2034,12 +2337,14 @@
     } else {
       applyProgressiveChrome(phase);
     }
+    const cm = consensusMult();
     const eps = genProduction();
-    state.energy += eps * dt;
-    state.totalEnergyEarned += eps * dt;
-    state.data += dataPerSecond() * dt;
-    state.network += networkPerSecond() * dt;
-    state.matter += matterPerSecond() * dt;
+    state.energy += eps * dt * cm;
+    state.totalEnergyEarned += eps * dt * cm;
+    state.data += dataPerSecond() * dt * cm;
+    state.network += networkPerSecond() * dt * cm;
+    state.matter += matterPerSecond() * dt * cm;
+    if (phase >= 7) state.echo = (state.echo || 0) + echoPerSecond() * dt * cm;
     if (state.energy > state.peakEnergy) state.peakEnergy = state.energy;
     if (phase >= 6) {
       state.quantumCharge = Math.min(100, state.quantumCharge + quantumFillRate() * dt);
