@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Survival Danmaku — Bullet Hell</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="shell">
+    <div class="game-fixed-ui" aria-hidden="false">
+      <a href="../index.html" id="back-to-hub" title="Back to Hub">&#8592;</a>
+    </div>
+    <header class="hud">
+      <div class="hud-main">
+        <div class="hud-row">
+          <span class="label">Time</span>
+          <span id="time-display" class="value mono">0.00</span>
+        </div>
+        <div class="hud-row">
+          <span class="label">Best</span>
+          <span id="best-display" class="value mono">0.00</span>
+        </div>
+        <div class="hud-row graze-row">
+          <span class="label">Graze</span>
+          <span id="graze-display" class="value mono">0</span>
+        </div>
+        <div class="hud-row pilot-row">
+          <span class="label">Pilot</span>
+          <span id="pilot-display" class="value pilot-name">—</span>
+        </div>
+      </div>
+      <button type="button" id="btn-pause" class="btn-pause" aria-pressed="false" title="Pause (P / Esc)">Pause</button>
+    </header>
+
+    <div class="canvas-wrap">
+      <canvas id="game" width="880" height="620" aria-label="Bullet hell playfield"></canvas>
+
+      <div id="menu-overlay" class="overlay menu-overlay" role="dialog" aria-labelledby="menu-title">
+        <div class="overlay-card menu-card">
+          <h2 id="menu-title" class="menu-title">Survival Danmaku</h2>
+          <p class="menu-tag">Enter your name, then start. One hit ends the run.</p>
+          <label class="name-label" for="player-name">Display name</label>
+          <input type="text" id="player-name" class="name-input" maxlength="16" placeholder="Player" autocomplete="username" />
+          <button type="button" id="btn-start" class="btn-retry btn-start">Start run</button>
+          <div class="menu-lb">
+            <h3 class="menu-lb-title">Global leaderboard</h3>
+            <div id="menu-lb-body" class="menu-lb-body">Loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="pause-overlay" class="overlay pause-overlay hidden" role="dialog" aria-labelledby="pause-title">
+        <div class="overlay-card pause-card">
+          <h2 id="pause-title">Paused</h2>
+          <p class="overlay-hint">Press <kbd>P</kbd> / <kbd>Esc</kbd> or use the button</p>
+          <button type="button" id="btn-resume" class="btn-retry">Resume</button>
+        </div>
+      </div>
+
+      <div id="overlay" class="overlay gameover-overlay hidden" role="dialog" aria-labelledby="overlay-title">
+        <div class="overlay-card">
+          <h2 id="overlay-title">Survived</h2>
+          <p class="overlay-time"><span id="final-time">0.00</span>s</p>
+          <p class="overlay-best">Best: <span id="final-best">0.00</span>s</p>
+          <p id="lb-submit-status" class="lb-status" role="status"></p>
+          <p class="overlay-hint">Press <kbd>R</kbd> / <kbd>Enter</kbd> for menu</p>
+          <button type="button" id="btn-retry" class="btn-retry">Back to menu</button>
+        </div>
+      </div>
+    </div>
+
+    <footer class="help">
+      <p><kbd>WASD</kbd> / arrows · <kbd>Shift</kbd> focus · <kbd>P</kbd> / <kbd>Esc</kbd> pause</p>
+      <p class="sub">Every run randomizes patterns. Scores post to the global board (needs Firebase + rules).</p>
+    </footer>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="../firebase-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

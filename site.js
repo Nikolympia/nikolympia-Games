@@ -38,10 +38,23 @@ const GAMES_DB = {
     bullets: ['One-thumb friendly', 'Boosts, teleports, breakables', 'Climb the global height board'],
     live: true,
   },
+  'survival-danmaku': {
+    id: 'survival-danmaku',
+    name: 'Survival Danmaku',
+    url: 'bullet-hell/index.html',
+    img: 'bullet_hell_cover.svg',
+    tags: ['Bullet hell', 'Arcade', 'Survival'],
+    desc: 'Pure dodge: no shooting. Patterns ramp forever — radial bursts, spirals, aimed shots, waves, and rings. Graze for bonus, Shift to focus.',
+    pitch: 'Infinite bullet hell — survive on movement alone.',
+    sessionHint: '30s–5m+ · one-hit death',
+    vibe: 'intense',
+    bullets: ['Shift = slow + hitbox ring', 'Local best time saved', 'Readable neon bullets on dark field'],
+    live: true,
+  },
 };
 
 /** Hero shows every live game — fixed order for scanability. */
-const HERO_GAME_ORDER = ['void-survivors', 'up-or-lose', 'ascension-protocol'];
+const HERO_GAME_ORDER = ['void-survivors', 'up-or-lose', 'ascension-protocol', 'survival-danmaku'];
 
 /** Latest #1 per game for hub cards + hero teaser (updated after each LB fetch). */
 let HUB_LB_TOP = {};
@@ -80,6 +93,16 @@ const HOME_LB_BOARDS = [
     href: 'ascension.html',
     gid: 'ascension-protocol',
     unit: (s) => 'Rating ' + formatLbScore(s),
+  },
+  {
+    col: 'danmaku_survival_leaderboard',
+    title: 'Survival Danmaku',
+    href: 'bullet-hell/index.html',
+    gid: 'survival-danmaku',
+    unit: (s) => {
+      const cs = Number(s) || 0;
+      return (cs / 100).toFixed(2) + 's';
+    },
   },
 ];
 
@@ -126,10 +149,20 @@ function readLocalAscensionLbBest() {
   }
 }
 
+function readLocalDanmakuBestCentis() {
+  try {
+    const t = parseFloat(localStorage.getItem('danmaku_survival_best_v1') || '0') || 0;
+    return Math.min(1999999999, Math.max(0, Math.floor(t * 100)));
+  } catch {
+    return 0;
+  }
+}
+
 function getPersonalBest(gid) {
   if (gid === 'void-survivors') return readLocalVoidBestRunScore();
   if (gid === 'up-or-lose') return readLocalUpOrLoseBest();
   if (gid === 'ascension-protocol') return readLocalAscensionLbBest();
+  if (gid === 'survival-danmaku') return readLocalDanmakuBestCentis();
   return 0;
 }
 

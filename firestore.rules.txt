@@ -69,6 +69,23 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Survival Danmaku — score = survival time in centiseconds (floor(seconds*100))
+    match /danmaku_survival_leaderboard/{entryId} {
+      allow read: if true;
+      allow create: if request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 24
+        && request.resource.data.score is int
+        && request.resource.data.score >= 0
+        && request.resource.data.score < 2000000000
+        && request.resource.data.seconds is int
+        && request.resource.data.seconds >= 0
+        && request.resource.data.seconds < 10000000
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 40;
+      allow update, delete: if false;
+    }
+
     // Hub accounts (Nikolympia site) — keep if you use Sign In on the hub
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
