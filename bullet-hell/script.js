@@ -14,7 +14,7 @@
     /** Focus / Shift — slow precision */
     FOCUS_SPEED: 108,
     /** Collision radius (very small = fair) */
-    HIT_RADIUS: 3.6,
+    HIT_RADIUS: 3.85,
     /** Graze ring — outside hit, inside this from bullet center */
     GRAZE_MARGIN: 14,
     /** Graze points per second while grazing (scaled by overlap) */
@@ -23,10 +23,10 @@
     MAX_BULLETS: 2200,
     /** Cull bullets this far outside playfield */
     CULL_MARGIN: 120,
-    /** Difficulty ramps (gentle; scaled again per-run) */
-    DIFF_LINEAR: 0.015,
-    DIFF_QUAD: 0.000035,
-    DIFF_CAP: 2.65,
+    /** Difficulty ramps — late game still climbs; early eased in difficulty() */
+    DIFF_LINEAR: 0.011,
+    DIFF_QUAD: 0.000028,
+    DIFF_CAP: 2.55,
     /** Storage */
     STORAGE_KEY: 'danmaku_survival_best_v1',
     NAME_STORAGE_KEY: 'danmaku_player_name_v1',
@@ -75,20 +75,20 @@
       rotate: 0,
       ring: 0,
     };
-    let u = pick(3, 8);
+    let u = pick(6, 14);
     for (const id of order) {
       unlock[id] = u;
-      u += pick(5, 14);
+      u += pick(8, 18);
     }
 
     return {
       rnd,
       seed,
-      speedScale: pick(0.52, 0.76),
-      bulletRScale: pick(0.65, 0.88),
-      density: pick(0.32, 0.52),
+      speedScale: pick(0.44, 0.7),
+      bulletRScale: pick(0.62, 0.86),
+      density: pick(0.24, 0.44),
       /** Multiplies difficulty() output — keeps late game tame */
-      difficultyScale: pick(0.38, 0.58),
+      difficultyScale: pick(0.3, 0.5),
       /** Aimed bullets err by this many radians */
       aimJitter: pick(0.12, 0.32),
       /** Radial: leave wedge gaps (skip every Nth bullet) */
@@ -105,9 +105,9 @@
       /** Spiral bullets per frame scale (capped in code) */
       spiralStrength: pick(0.4, 0.85),
       unlock,
-      radial2At: pick(16, 38),
-      streamAt: pick(32, 52),
-      bossAt: pick(55, 95),
+      radial2At: pick(22, 48),
+      streamAt: pick(38, 58),
+      bossAt: pick(62, 105),
       /** Random motion offsets so paths never match last run */
       phaseA: rnd() * Math.PI * 2,
       phaseB: rnd() * Math.PI * 2,
@@ -140,6 +140,7 @@
   const elFinalTime = document.getElementById('final-time');
   const elFinalBest = document.getElementById('final-best');
   const btnRetry = document.getElementById('btn-retry');
+  const btnPlayAgain = document.getElementById('btn-play-again');
   const menuOverlay = document.getElementById('menu-overlay');
   const pauseOverlay = document.getElementById('pause-overlay');
   const nameInput = document.getElementById('player-name');
@@ -309,13 +310,17 @@
     bossSpin: 0,
   };
 
+  /**
+   * Smooth ramp: very low for the first ~10–15s, approaches full curve by ~45s+.
+   * Patterns should feel sparse at start and tighten gradually.
+   */
   function difficulty() {
     const t = survivalTime;
     let d = 1 + t * CONFIG.DIFF_LINEAR + t * t * CONFIG.DIFF_QUAD;
     d = Math.min(CONFIG.DIFF_CAP, d) * run.difficultyScale;
-    const warm = Math.min(1, t / 5.5);
-    d = 0.62 + (d - 0.62) * warm;
-    return Math.max(0.52, d);
+    const ease = 1 - Math.exp(-t / 22);
+    d = 0.38 + (d - 0.38) * ease;
+    return Math.max(0.38, d);
   }
 
   function spawnBullet(x, y, vx, vy, r, color, kind) {
@@ -349,8 +354,10 @@
   /** Radial burst from point — wedge gaps + run density */
   function patternRadial(cx, cy, count, speed, angle0, spread) {
     const D = difficulty();
-    const n = Math.max(8, Math.floor((count + D * 0.65) * run.density));
-    const spd = speed * (0.78 + D * 0.055);
+    const t = survivalTime;
+    let n = Math.max(7, Math.floor((count + D * 0.55) * run.density));
+    if (t < 12) n = Math.max(6, Math.floor(n * (0.5 + (t / 12) * 0.5)));
+    const spd = speed * (0.72 + D * 0.05) * (t < 10 ? 0.88 + t * 0.012 : 1);
     const br = 3.4 + D * 0.18;
     for (let i = 0; i < n; i++) {
       if ((i + run.radialGapPhase) % run.radialGapN === 0) continue;
@@ -370,14 +377,17 @@
   /** Spiral stream — capped rate, run-unique phase */
   function patternSpiral(dt) {
     const D = difficulty();
-    pat.spiralAngle += dt * run.spiralSign * (0.95 + D * 0.28);
+    const t = survivalTime;
+    const chill = t < 14 ? 0.5 + (t / 14) * 0.5 : 1;
+    pat.spiralAngle += dt * run.spiralSign * (0.95 + D * 0.28) * chill;
     const cx =
       CONFIG.CANVAS_W * 0.5 +
       Math.sin(survivalTime * run.radialWanderX + run.phaseA) * (95 + run.rnd() * 40);
     const cy = 48 + Math.cos(survivalTime * run.radialWanderY + run.phaseB) * 32;
-    const base = 1 + Math.floor(D * 0.38 * run.spiralStrength);
-    const perFrame = Math.min(2, Math.max(1, base));
-    const spd = 78 + D * 28;
+    const base = 1 + Math.floor(D * 0.32 * run.spiralStrength);
+    let perFrame = Math.min(2, Math.max(1, base));
+    if (t < 11) perFrame = 1;
+    const spd = (78 + D * 26) * (t < 12 ? 0.8 + (t / 12) * 0.2 : 1);
     for (let k = 0; k < perFrame; k++) {
       const a = pat.spiralAngle + run.phaseC + k * 0.42;
       spawnBullet(
@@ -424,8 +434,12 @@
     const s = Math.sin(err);
     const rdx = (dx / len) * c - (dy / len) * s;
     const rdy = (dx / len) * s + (dy / len) * c;
-    const spd = (118 + D * 38) * (0.9 + run.rnd() * 0.1);
-    spawnBullet(x, y, rdx * spd, rdy * spd, 3.6, COLORS.aimed, 'aimed');
+    const t = survivalTime;
+    const spd =
+      (108 + D * 34) *
+      (0.9 + run.rnd() * 0.1) *
+      (t < 14 ? 0.82 + (t / 14) * 0.18 : 1);
+    spawnBullet(x, y, rdx * spd, rdy * spd, 3.45, COLORS.aimed, 'aimed');
   }
 
   /** Descending wave — random column holes */
@@ -434,7 +448,8 @@
     pat.wavePhase += 0.42 + run.rnd() * 0.2;
     const cols = Math.max(8, Math.floor((9 + Math.min(5, D * 0.9)) * run.density));
     const phase = pat.wavePhase + run.phaseA;
-    const vy = 52 + D * 18;
+    const t = survivalTime;
+    const vy = (48 + D * 16) * (t < 12 ? 0.85 + (t / 12) * 0.15 : 1);
     for (let i = 0; i < cols; i++) {
       if (run.rnd() < run.waveColSkip) continue;
       const px = (i + 0.5) * (CONFIG.CANVAS_W / cols);
@@ -446,9 +461,12 @@
   /** Rotating cross — fewer arms pressure, run-specific center */
   function patternRotating(dt) {
     const D = difficulty();
-    pat.rotateAngle += dt * (0.62 + D * 0.12);
+    const t = survivalTime;
+    pat.rotateAngle += dt * (0.62 + D * 0.12) * (t < 14 ? 0.65 + (t / 14) * 0.35 : 1);
     pat.rotateBurstAcc += dt;
-    const burstInt = Math.max(0.1, (0.16 - (D - 1) * 0.008) * run.intMul.rotate);
+    const burstInt =
+      Math.max(0.11, (0.17 - (D - 1) * 0.007) * run.intMul.rotate) *
+      (t < 16 ? 1.35 : 1);
     if (pat.rotateBurstAcc < burstInt) return;
     pat.rotateBurstAcc = 0;
     const cx = run.rotateCenterX + Math.sin(survivalTime + run.phaseB) * 30;
@@ -542,11 +560,13 @@
 
   function updatePatterns(dt) {
     const D = difficulty();
+    const t = survivalTime;
+    const earlyPad = t < 16 ? 1 + ((16 - t) / 16) * 0.55 : 1;
 
-    // Primary radial — always, generous timing
+    // Primary radial — always, generous timing (extra spacing early)
     pat.radialAcc += dt;
     const radialInt =
-      Math.max(0.72, 2.15 - D * 0.22) * run.intMul.radial;
+      Math.max(0.88, 2.45 - D * 0.2) * run.intMul.radial * earlyPad;
     if (pat.radialAcc >= radialInt) {
       pat.radialAcc = 0;
       const cx =
@@ -558,8 +578,8 @@
       patternRadial(
         cx,
         cy,
-        11,
-        72 + D * 12,
+        t < 12 ? 9 : 11,
+        64 + D * 11,
         survivalTime * run.radialSpin + run.phaseC,
         Math.PI * 2
       );
@@ -581,10 +601,13 @@
       }
     }
 
-    // Aimed — slow cadence, max 1–2 per tick
+    // Aimed — slow cadence, max 1–2 per tick (rarer in first ~14s)
     pat.aimedAcc += dt;
-    const aimedInt = Math.max(0.32, 0.72 - D * 0.045) * run.intMul.aimed;
-    const aimedCount = D < 1.2 ? 1 : Math.min(2, 1 + Math.floor((D - 1.1) * 0.4));
+    const aimedPad = t < 14 ? 1.45 - (t / 14) * 0.25 : 1;
+    const aimedInt =
+      Math.max(0.38, 0.82 - D * 0.04) * run.intMul.aimed * aimedPad * earlyPad;
+    const aimedCount =
+      D < 1.15 || t < 10 ? 1 : Math.min(2, 1 + Math.floor((D - 1.05) * 0.35));
     while (pat.aimedAcc >= aimedInt) {
       pat.aimedAcc -= aimedInt;
       for (let i = 0; i < aimedCount; i++) patternAimed();
@@ -596,8 +619,9 @@
 
     if (survivalTime >= run.unlock.wave) {
       pat.waveRowAcc += dt;
-      const waveInt = Math.max(0.42, 0.88 - D * 0.045) * run.intMul.wave;
-      const rowsPerTick = survivalTime > run.streamAt ? 2 : 1;
+      const waveInt =
+        Math.max(0.5, 0.98 - D * 0.04) * run.intMul.wave * (t < 14 ? 1.35 : 1);
+      const rowsPerTick = survivalTime > run.streamAt && t > 28 ? 2 : 1;
       let spawned = 0;
       while (pat.waveRowAcc >= waveInt && spawned < rowsPerTick) {
         pat.waveRowAcc -= waveInt;
@@ -608,7 +632,8 @@
 
     if (survivalTime >= run.unlock.ring) {
       pat.ringAcc += dt;
-      const ringInt = Math.max(1.35, 3.2 - D * 0.28) * run.intMul.ring;
+      const ringInt =
+        Math.max(1.55, 3.5 - D * 0.26) * run.intMul.ring * (t < 20 ? 1.2 : 1);
       if (pat.ringAcc >= ringInt) {
         pat.ringAcc = 0;
         patternRing();
@@ -995,10 +1020,17 @@
       return;
     }
 
-    if (phase === 'dead' && (e.key === 'r' || e.key === 'Enter')) {
-      e.preventDefault();
-      openMenu();
-      return;
+    if (phase === 'dead') {
+      if (e.key === 'Enter' || k === 'r' || e.key === ' ') {
+        e.preventDefault();
+        startRunFromMenu();
+        return;
+      }
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        e.preventDefault();
+        openMenu();
+        return;
+      }
     }
 
     if (phase === 'menu' && e.key === 'Enter' && document.activeElement === nameInput) {
@@ -1015,6 +1047,7 @@
   });
 
   btnRetry.addEventListener('click', () => openMenu());
+  if (btnPlayAgain) btnPlayAgain.addEventListener('click', () => startRunFromMenu());
   btnStart.addEventListener('click', () => startRunFromMenu());
   btnPause.addEventListener('click', () => togglePause());
   btnResume.addEventListener('click', () => togglePause());

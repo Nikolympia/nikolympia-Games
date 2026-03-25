@@ -371,6 +371,26 @@ kbd {
   transform: scale(0.98);
 }
 
+.gameover-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-retry.btn-secondary {
+  background: rgba(40, 52, 80, 0.95);
+  color: var(--text);
+  border: 1px solid rgba(102, 212, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.btn-retry.btn-secondary:hover {
+  filter: brightness(1.12);
+  border-color: rgba(102, 212, 255, 0.55);
+}
+
 .help {
   margin-top: 10px;
   padding: 0 6px;
